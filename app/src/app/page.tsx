@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { readConfig } from "@/lib/config";
+import { readActivity } from "@/lib/activity";
 import RunNowButton from "@/components/RunNowButton";
 
 const INTEGRATION_LABELS: Record<string, string> = {
@@ -33,6 +34,7 @@ export default function Dashboard() {
   const integrations = config.enabledIntegrations ?? [];
   const aiLabel =
     config.aiProvider ? AI_PROVIDER_LABELS[config.aiProvider] ?? config.aiProvider : null;
+  const activity = readActivity(10);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -115,20 +117,56 @@ export default function Dashboard() {
           )}
         </section>
 
-        {/* Activity log placeholder */}
+        {/* Activity log */}
         <section>
           <p className="text-xs text-zinc-500 uppercase tracking-widest mb-2 font-medium">
             Recent Activity
           </p>
-          <div className="bg-zinc-800/50 border border-zinc-700/50 rounded-xl px-5 py-8 text-center">
-            <p className="text-zinc-500 text-sm">
-              No runs yet — the agent will check in every{" "}
-              <span className="text-zinc-300">{config.cronIntervalMinutes ?? 5} minutes</span>.
-            </p>
-            <p className="text-zinc-600 text-xs mt-1">
-              Hit &ldquo;Run Now&rdquo; above to trigger a manual run.
-            </p>
-          </div>
+          {activity.length === 0 ? (
+            <div className="bg-zinc-800/50 border border-zinc-700/50 rounded-xl px-5 py-8 text-center">
+              <p className="text-zinc-500 text-sm">
+                No runs yet — agent checks in every{" "}
+                <span className="text-zinc-300">{config.cronIntervalMinutes ?? 5} minutes</span>.
+              </p>
+              <p className="text-zinc-600 text-xs mt-1">
+                Hit &ldquo;Run Now&rdquo; to trigger a manual run.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {activity.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="bg-zinc-800/40 border border-zinc-700/40 rounded-xl px-5 py-4"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${entry.success ? "bg-emerald-400" : "bg-red-400"}`}
+                      />
+                      <span className="text-xs font-mono text-zinc-400">{entry.trigger}</span>
+                    </div>
+                    <span className="text-xs text-zinc-600">
+                      {new Date(entry.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-zinc-300 leading-relaxed">{entry.message}</p>
+                  {entry.actions.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {entry.actions.slice(0, 4).map((a, i) => (
+                        <span
+                          key={i}
+                          className="text-[10px] bg-zinc-700/60 text-zinc-400 px-2 py-0.5 rounded font-mono"
+                        >
+                          {a}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Re-setup link */}
