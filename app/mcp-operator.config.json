@@ -1,0 +1,21 @@
+{
+  "setupComplete": false,
+  "agentMission": "",
+  "cronIntervalMinutes": 5,
+  "enabledIntegrations": [],
+  "discordWebhookUrl": "",
+  "githubToken": "",
+  "githubRepo": "",
+  "googleSheetsApiKey": "",
+  "googleSpreadsheetId": "",
+  "slackWebhookUrl": "",
+  "hubspotApiKey": "",
+  "stripeApiKey": "",
+  "airtableApiKey": "",
+  "airtableBaseId": "",
+  "notionApiKey": "",
+  "sendgridApiKey": "",
+  "aiProvider": "",
+  "aiApiKey": "",
+  "aiModel": ""
+}
