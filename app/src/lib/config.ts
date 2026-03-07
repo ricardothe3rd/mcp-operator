@@ -39,9 +39,11 @@ export interface MCPConfig {
   sendgridApiKey: string;
 
   // AI provider
-  aiProvider: "google" | "openai" | "anthropic" | "";
+  aiProvider: "google" | "openai" | "anthropic" | "groq" | "ollama" | "";
   aiApiKey: string;
   aiModel: string;
+  ollamaBaseUrl: string;
+  ollamaModel: string;
 }
 
 const DEFAULTS: MCPConfig = {
@@ -66,6 +68,8 @@ const DEFAULTS: MCPConfig = {
   aiProvider: "",
   aiApiKey: "",
   aiModel: "",
+  ollamaBaseUrl: "http://localhost:11434",
+  ollamaModel: "llama3.2",
 };
 
 const CONFIG_PATH = path.join(process.cwd(), "mcp-operator.config.json");
