@@ -2,6 +2,8 @@ import { generateText, tool, stepCountIs, zodSchema, type Tool } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createGroq } from "@ai-sdk/groq";
+import { createOllama } from "ollama-ai-provider";
 import { z } from "zod";
 import { readConfig, MCPConfig } from "./config";
 import { appendActivity } from "./activity";
@@ -17,6 +19,15 @@ const FALLBACK_MISSION =
 
 function getModel(config: MCPConfig) {
   switch (config.aiProvider) {
+    case "ollama": {
+      const ollama = createOllama({ baseURL: config.ollamaBaseUrl || "http://localhost:11434" });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ollama(config.ollamaModel || "llama3.2") as any;
+    }
+    case "groq": {
+      const groq = createGroq({ apiKey: config.aiApiKey });
+      return groq("llama-3.3-70b-versatile");
+    }
     case "google": {
       const g = createGoogleGenerativeAI({ apiKey: config.aiApiKey });
       return g("gemini-2.0-flash");
@@ -31,14 +42,12 @@ function getModel(config: MCPConfig) {
       return a("claude-haiku-4-5-20251001");
     }
     default: {
-      // Auto-detect from env
-      const googleKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-      if (googleKey) {
-        const g = createGoogleGenerativeAI({ apiKey: googleKey });
-        return g("gemini-2.0-flash");
-      }
-      const a = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" });
-      return a("claude-haiku-4-5-20251001");
+      // Zero-config fallback — try Ollama first (no key needed)
+      const ollamaBase = config.ollamaBaseUrl || process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+      const ollamaModel = config.ollamaModel || "llama3.2";
+      const ollama = createOllama({ baseURL: ollamaBase });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ollama(ollamaModel) as any;
     }
   }
 }
