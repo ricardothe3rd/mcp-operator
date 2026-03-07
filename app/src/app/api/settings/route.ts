@@ -22,6 +22,7 @@ const ALLOWED_KEYS = new Set([
   "stripeApiKey",
   "airtableApiKey",
   "airtableBaseId",
+  "airtableTableNames",
   "notionApiKey",
   "sendgridApiKey",
 ]);
@@ -54,6 +55,7 @@ export async function GET() {
     stripeApiKey: maskKey(config.stripeApiKey),
     airtableApiKey: maskKey(config.airtableApiKey),
     airtableBaseId: config.airtableBaseId,
+    airtableTableNames: config.airtableTableNames,
     notionApiKey: maskKey(config.notionApiKey),
     sendgridApiKey: maskKey(config.sendgridApiKey),
   });

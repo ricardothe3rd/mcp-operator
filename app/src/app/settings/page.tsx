@@ -66,7 +66,7 @@ const SERVICES: ServiceConfig[] = [
     id: "airtable", label: "Airtable", service: "airtable", icon: "🗂️",
     fields: [
       { key: "airtableApiKey", label: "API Key", placeholder: "pat…", type: "password" },
-      { key: "airtableBaseId", label: "Base ID", placeholder: "app…" },
+      { key: "airtableBaseId", label: "Base ID", placeholder: "appXXXXXXXXXXXXXX" },
     ],
     testable: false,
   },
@@ -97,6 +97,10 @@ export default function SettingsPage() {
   const [cronInterval, setCronInterval] = useState(5);
   const [agentMission, setAgentMission] = useState("");
   const [activeSection, setActiveSection] = useState("agent");
+  const [airtableTables, setAirtableTables] = useState<{ id: string; name: string }[]>([]);
+  const [airtableTablesLoading, setAirtableTablesLoading] = useState(false);
+  const [airtableTablesError, setAirtableTablesError] = useState("");
+  const [airtableTableNames, setAirtableTableNames] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/settings");
@@ -112,6 +116,7 @@ export default function SettingsPage() {
     setOllamaModel(data.ollamaModel ?? "llama3.2");
     setCronInterval(data.cronIntervalMinutes ?? 5);
     setAgentMission(data.agentMission ?? "");
+    setAirtableTableNames(data.airtableTableNames ?? []);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -121,10 +126,41 @@ export default function SettingsPage() {
     document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  const fetchAirtableTables = async () => {
+    setAirtableTablesLoading(true);
+    setAirtableTablesError("");
+    try {
+      const apiKey = values["airtableApiKey"];
+      const baseId = values["airtableBaseId"];
+      // Pass params only if they aren't masked — server uses saved config as fallback
+      const params = new URLSearchParams();
+      if (apiKey && !apiKey.startsWith("••••")) params.set("apiKey", apiKey);
+      if (baseId && !baseId.startsWith("••••")) params.set("baseId", baseId);
+      const res = await fetch(`/api/settings/airtable-tables?${params}`);
+      const data = await res.json();
+      if (data.tables) {
+        setAirtableTables(data.tables);
+      } else {
+        setAirtableTablesError(data.error ?? "Failed to load tables");
+      }
+    } catch {
+      setAirtableTablesError("Network error");
+    }
+    setAirtableTablesLoading(false);
+  };
+
+  const toggleAirtableTable = (name: string) => {
+    setAirtableTableNames((prev) =>
+      prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]
+    );
+  };
+
   const saveService = async (service: ServiceConfig) => {
     setSaving((s) => ({ ...s, [service.service]: true }));
     const body: Record<string, string> = {};
     for (const f of service.fields) body[f.key] = values[f.key] ?? "";
+    // Include table name when saving Airtable
+    if (service.service === "airtable") body["airtableTableNames"] = airtableTableNames as unknown as string;
     await fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -356,6 +392,57 @@ export default function SettingsPage() {
                       />
                     </FieldGroup>
                   ))}
+
+                  {/* Airtable table picker */}
+                  {svc.service === "airtable" && (
+                    <FieldGroup label="Tables the agent can use">
+                      <button
+                        onClick={fetchAirtableTables}
+                        disabled={airtableTablesLoading}
+                        className="w-full h-8 text-xs rounded-lg border border-input bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
+                      >
+                        {airtableTablesLoading ? "Loading tables…" : "Load tables from base →"}
+                      </button>
+
+                      {airtableTablesError && (
+                        <p className="text-xs text-destructive mt-1">{airtableTablesError}</p>
+                      )}
+
+                      {airtableTables.length > 0 && (
+                        <div className="mt-2 border border-border rounded-xl overflow-hidden">
+                          <div className="px-3 py-2 bg-muted/40 border-b border-border flex items-center justify-between">
+                            <span className="text-[11px] text-muted-foreground font-medium">{airtableTables.length} tables found — select which ones the agent can access</span>
+                            <button
+                              onClick={() => setAirtableTableNames(airtableTables.map(t => t.name))}
+                              className="text-[11px] text-primary hover:underline"
+                            >
+                              Select all
+                            </button>
+                          </div>
+                          {airtableTables.map((t) => (
+                            <label
+                              key={t.id}
+                              className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/30 cursor-pointer border-b border-border/50 last:border-0 transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={airtableTableNames.includes(t.name)}
+                                onChange={() => toggleAirtableTable(t.name)}
+                                className="accent-primary w-3.5 h-3.5"
+                              />
+                              <span className="text-sm text-foreground">{t.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+
+                      {airtableTableNames.length > 0 && (
+                        <p className="text-[11px] text-emerald-500 mt-1">
+                          {airtableTableNames.length} table{airtableTableNames.length > 1 ? "s" : ""} selected: {airtableTableNames.join(", ")}
+                        </p>
+                      )}
+                    </FieldGroup>
+                  )}
                 </CardContent>
                 <CardFooter className="gap-2">
                   <SaveButton
