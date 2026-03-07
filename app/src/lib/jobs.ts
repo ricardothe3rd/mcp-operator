@@ -11,6 +11,7 @@ export interface Job {
   lastRunAt?: string;
   lastResult?: "success" | "failed";
   lastMessage?: string;
+  consecutiveFailures: number;
   createdAt: string;
 }
 
@@ -33,6 +34,7 @@ function migrateFromConfig(): Job[] {
       integrations: config.enabledIntegrations ?? [],
       autoRun: false,
       intervalMinutes: config.cronIntervalMinutes || 10,
+      consecutiveFailures: 0,
       createdAt: new Date().toISOString(),
     };
     writeJobs([job]);
@@ -52,8 +54,9 @@ export function readJobs(): Job[] {
   }
 }
 
-export function createJob(data: Omit<Job, "id" | "createdAt">): Job {
+export function createJob(data: Omit<Job, "id" | "createdAt" | "consecutiveFailures">): Job {
   const job: Job = {
+    consecutiveFailures: 0,
     ...data,
     id: "job_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
     createdAt: new Date().toISOString(),
