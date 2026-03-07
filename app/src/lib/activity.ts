@@ -8,10 +8,15 @@ export interface ActivityEntry {
   actions: string[];
   success: boolean;
   message: string;
+  jobId?: string;
 }
 
 const ACTIVITY_PATH = path.join(process.cwd(), "mcp-operator.activity.json");
 const MAX_ENTRIES = 50;
+
+export function readActivityByJob(jobId: string, limit = 5): ActivityEntry[] {
+  return readActivity(50).filter((e) => e.jobId === jobId).slice(0, limit);
+}
 
 export function readActivity(limit = 20): ActivityEntry[] {
   try {
