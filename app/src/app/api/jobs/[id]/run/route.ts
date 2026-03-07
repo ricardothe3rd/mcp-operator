@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readJobs, patchJob } from "@/lib/jobs";
-import { runAgent } from "@/lib/agent";
+import { readJobs } from "@/lib/jobs";
+import { runJob } from "@/lib/run-job";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { auth } from "@/auth";
 
@@ -24,16 +24,6 @@ export async function POST(
   const job = jobs.find((j) => j.id === id);
   if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const result = await runAgent(
-    "manual-trigger",
-    `Job: ${job.name}\nMission: ${job.mission}`
-  );
-
-  patchJob(id, {
-    lastRunAt: new Date().toISOString(),
-    lastResult: result.success ? "success" : "failed",
-    lastMessage: result.message,
-  });
-
+  const result = await runJob(job);
   return NextResponse.json(result);
 }

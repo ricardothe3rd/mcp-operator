@@ -1,7 +1,7 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { readJobs, patchJob } = await import("./lib/jobs");
-    const { runAgent } = await import("./lib/agent");
+    const { readJobs } = await import("./lib/jobs");
+    const { runJob } = await import("./lib/run-job");
     const cron = await import("node-cron");
 
     // Single tick every minute — checks which jobs are due
@@ -16,20 +16,12 @@ export async function register() {
         const lastRun = job.lastRunAt ? new Date(job.lastRunAt).getTime() : 0;
 
         if (now - lastRun >= intervalMs) {
-          console.log(`[MCP Operator] Running job: ${job.name}`);
-          const result = await runAgent(
-            "scheduled",
-            `Job: ${job.name}\nMission: ${job.mission}`
-          );
-          patchJob(job.id, {
-            lastRunAt: new Date().toISOString(),
-            lastResult: result.success ? "success" : "failed",
-            lastMessage: result.message,
-          });
+          console.log(`[MCP Agent] Running job: ${job.name}`);
+          await runJob(job);
         }
       }
     });
 
-    console.log("[MCP Operator] Job scheduler started — checking every minute");
+    console.log("[MCP Agent] Job scheduler started — checking every minute");
   }
 }
