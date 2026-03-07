@@ -31,6 +31,7 @@ export interface MCPConfig {
   // Airtable
   airtableApiKey: string;
   airtableBaseId: string;
+  airtableTableNames: string[]; // all selected tables the agent can use
 
   // Notion
   notionApiKey: string;
@@ -62,6 +63,7 @@ const DEFAULTS: MCPConfig = {
   stripeApiKey: "",
   airtableApiKey: "",
   airtableBaseId: "",
+  airtableTableNames: [],
   notionApiKey: "",
   sendgridApiKey: "",
 
