@@ -45,7 +45,8 @@ function getModel(config: MCPConfig) {
 
 export async function runAgent(
   trigger: string,
-  context?: string
+  context?: string,
+  jobId?: string
 ): Promise<AgentResult> {
   const config = readConfig();
   const mission = config.agentMission || FALLBACK_MISSION;
@@ -81,12 +82,12 @@ Do not ask for confirmation. Just act.`;
     }
     actions.push(result.text || "Agent completed run");
 
-    await appendActivity({ trigger, actions, success: true, message: result.text });
+    await appendActivity({ trigger, actions, success: true, message: result.text, jobId });
 
     return { success: true, message: result.text, actions };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    await appendActivity({ trigger, actions, success: false, message });
+    await appendActivity({ trigger, actions, success: false, message, jobId });
     return { success: false, message, actions };
   }
 }
