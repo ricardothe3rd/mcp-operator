@@ -92,6 +92,8 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [aiProvider, setAiProvider] = useState("");
   const [aiApiKey, setAiApiKey] = useState("");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
+  const [ollamaModel, setOllamaModel] = useState("llama3.2");
   const [cronInterval, setCronInterval] = useState(5);
   const [agentMission, setAgentMission] = useState("");
   const [activeSection, setActiveSection] = useState("agent");
@@ -106,6 +108,8 @@ export default function SettingsPage() {
     setValues(v);
     setAiProvider(data.aiProvider ?? "");
     setAiApiKey(data.aiApiKey ?? "");
+    setOllamaBaseUrl(data.ollamaBaseUrl ?? "http://localhost:11434");
+    setOllamaModel(data.ollamaModel ?? "llama3.2");
     setCronInterval(data.cronIntervalMinutes ?? 5);
     setAgentMission(data.agentMission ?? "");
   }, []);
@@ -148,7 +152,7 @@ export default function SettingsPage() {
     await fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ aiProvider, aiApiKey, cronIntervalMinutes: cronInterval, agentMission }),
+      body: JSON.stringify({ aiProvider, aiApiKey, ollamaBaseUrl, ollamaModel, cronIntervalMinutes: cronInterval, agentMission }),
     });
     setSaving((s) => ({ ...s, agent: false }));
     setSaved((s) => ({ ...s, agent: true }));
@@ -255,21 +259,59 @@ export default function SettingsPage() {
                       onChange={(e) => setAiProvider(e.target.value)}
                       className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 transition-colors"
                     >
-                      <option value="">Select provider</option>
+                      <option value="">Auto-detect</option>
+                      <option value="ollama">🦙 Ollama (local, free)</option>
+                      <option value="groq">⚡ Groq (free key)</option>
                       <option value="google">Google Gemini</option>
                       <option value="anthropic">Anthropic Claude</option>
                       <option value="openai">OpenAI</option>
                     </select>
                   </FieldGroup>
                 </div>
-                <FieldGroup label="AI API Key">
-                  <Input
-                    type="password"
-                    value={aiApiKey}
-                    onChange={(e) => setAiApiKey(e.target.value)}
-                    placeholder="Paste your API key…"
-                  />
-                </FieldGroup>
+
+                {/* Ollama-specific fields */}
+                {aiProvider === "ollama" && (
+                  <div className="grid grid-cols-2 gap-4 p-3 rounded-lg border border-border/60 bg-muted/20">
+                    <FieldGroup label="Ollama URL">
+                      <Input
+                        value={ollamaBaseUrl}
+                        onChange={(e) => setOllamaBaseUrl(e.target.value)}
+                        placeholder="http://localhost:11434"
+                      />
+                    </FieldGroup>
+                    <FieldGroup label="Model">
+                      <select
+                        value={ollamaModel}
+                        onChange={(e) => setOllamaModel(e.target.value)}
+                        className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 transition-colors"
+                      >
+                        <option value="llama3.2">llama3.2 (2 GB) — recommended</option>
+                        <option value="llama3.1:8b">llama3.1:8b (4.7 GB) — more capable</option>
+                        <option value="qwen2.5:7b">qwen2.5:7b (4.7 GB) — best tool calling</option>
+                        <option value="mistral">mistral (4.1 GB)</option>
+                        <option value="phi4">phi4 (9.1 GB)</option>
+                      </select>
+                    </FieldGroup>
+                    <div className="col-span-2">
+                      <p className="text-[11px] text-muted-foreground">
+                        Make sure Ollama is running: <code className="font-mono bg-muted px-1 rounded">ollama serve</code>
+                        {" · "}Pull your model first: <code className="font-mono bg-muted px-1 rounded">ollama pull {ollamaModel}</code>
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* API key for non-Ollama providers */}
+                {aiProvider !== "ollama" && (
+                  <FieldGroup label={aiProvider === "groq" ? "Groq API Key — free at console.groq.com" : "AI API Key"}>
+                    <Input
+                      type="password"
+                      value={aiApiKey}
+                      onChange={(e) => setAiApiKey(e.target.value)}
+                      placeholder={aiProvider === "groq" ? "gsk_…" : "Paste your API key…"}
+                    />
+                  </FieldGroup>
+                )}
               </CardContent>
               <CardFooter className="gap-2">
                 <SaveButton onClick={saveAI} loading={saving["agent"]} saved={saved["agent"]} />
