@@ -9,50 +9,45 @@ import { z } from "zod";
 import { readConfig, writeConfig } from "@/lib/config";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { auth } from "@/auth";
+import { buildKnowledgeContext } from "@/lib/knowledge";
 
 // Explicit allowlist for save_config tool — no arbitrary key injection
+// Note: aiProvider/aiApiKey/aiModel intentionally excluded — chat cannot change the LLM
 const ALLOWED_CONFIG_KEYS = new Set([
   "discordWebhookUrl", "githubToken", "githubRepo", "slackWebhookUrl",
   "googleSheetsApiKey", "googleSpreadsheetId", "hubspotApiKey", "stripeApiKey",
   "airtableApiKey", "airtableBaseId", "notionApiKey", "sendgridApiKey",
-  "aiProvider", "aiApiKey", "aiModel",
 ]);
 
-/** Pick the best available model for the setup chat assistant */
+/** Pick the model — user config wins, Ollama is the default (no API key needed) */
 function getSetupModel(): LanguageModel {
   const config = readConfig();
 
-  // 1. Groq — best free option for conversational setup (env var)
-  const groqKey = process.env.GROQ_API_KEY;
-  if (groqKey) {
-    return createGroq({ apiKey: groqKey })("llama-3.3-70b-versatile");
-  }
-
-  // 2. Config file — whatever the user saved in Settings
-  if (config.aiProvider && config.aiApiKey) {
+  // 1. Explicit user config in Settings
+  if (config.aiProvider) {
     switch (config.aiProvider) {
+      case "ollama": {
+        const base = config.ollamaBaseUrl || "http://localhost:11434";
+        const model = config.ollamaModel || "llama3.2";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return createOllama({ baseURL: base })(model) as any;
+      }
       case "groq":
-        return createGroq({ apiKey: config.aiApiKey })("llama-3.3-70b-versatile");
+        if (config.aiApiKey) return createGroq({ apiKey: config.aiApiKey })("llama-3.3-70b-versatile");
+        break;
       case "google":
-        return createGoogleGenerativeAI({ apiKey: config.aiApiKey })("gemini-2.0-flash");
+        if (config.aiApiKey) return createGoogleGenerativeAI({ apiKey: config.aiApiKey })("gemini-2.0-flash");
+        break;
       case "anthropic":
-        return createAnthropic({ apiKey: config.aiApiKey })("claude-haiku-4-5-20251001");
+        if (config.aiApiKey) return createAnthropic({ apiKey: config.aiApiKey })("claude-haiku-4-5-20251001");
+        break;
       case "openai":
-        return createOpenAI({ apiKey: config.aiApiKey })("gpt-4o-mini");
+        if (config.aiApiKey) return createOpenAI({ apiKey: config.aiApiKey })("gpt-4o-mini");
+        break;
     }
   }
 
-  // 3. Environment variable fallbacks
-  const googleKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (googleKey) return createGoogleGenerativeAI({ apiKey: googleKey })("gemini-2.0-flash");
-
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (anthropicKey) return createAnthropic({ apiKey: anthropicKey })("claude-haiku-4-5-20251001");
-
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey) return createOpenAI({ apiKey: openaiKey })("gpt-4o-mini");
-
-  // 4. Ollama — zero-cost local fallback (no key needed)
+  // 2. Default: Ollama — runs locally, no API key required
   const ollamaBase = config.ollamaBaseUrl || process.env.OLLAMA_BASE_URL || "http://localhost:11434";
   const ollamaModel = config.ollamaModel || "llama3.2";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,6 +75,29 @@ Rules:
 - After save_config + test_connection, always confirm the result before moving on.
 - If a test fails, tell the user what went wrong and ask them to try again.
 - Never echo raw credentials back to the user.`;
+
+function buildSystemPrompt(config: ReturnType<typeof readConfig>, knowledgeContext: string): string {
+  if (config.setupComplete) {
+    const integrations = config.enabledIntegrations.join(", ") || "none yet";
+    const mission = config.agentMission || "Monitor connected platforms and report on activity.";
+    return `You are MCP Operator, an AI assistant managing the user's automations.
+
+Current mission: ${mission}
+Connected integrations: ${integrations}
+
+You can help the user:
+- Understand what their agent is doing and why
+- Add or update API keys (call save_config)
+- Change the agent mission or schedule
+- Troubleshoot failed jobs or connections
+- Explain what each integration does
+
+Keep responses short and actionable. If asked to save a credential, use save_config then test_connection.
+Never echo raw credentials back to the user.
+${knowledgeContext}`;
+  }
+  return SETUP_SYSTEM_PROMPT + knowledgeContext;
+}
 
 const SERVICE_FIELD_MAP: Record<string, Record<string, string>> = {
   discord: { webhookUrl: "discordWebhookUrl" },
@@ -114,9 +132,17 @@ export async function POST(req: NextRequest) {
 
   const { messages } = await req.json();
 
+  // Pull the last user message to search the knowledge base
+  const lastUserMessage = [...messages].reverse().find((m: { role: string }) => m.role === "user");
+  const knowledgeContext = lastUserMessage
+    ? buildKnowledgeContext(lastUserMessage.content ?? "")
+    : "";
+
+  const config = readConfig();
+
   const result = await generateText({
     model: getSetupModel(),
-    system: SETUP_SYSTEM_PROMPT,
+    system: buildSystemPrompt(config, knowledgeContext),
     messages,
     stopWhen: stepCountIs(10),
     tools: {
