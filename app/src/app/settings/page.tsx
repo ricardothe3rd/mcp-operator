@@ -3,101 +3,105 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { Loader2, CheckCircle2, XCircle, ChevronRight } from "lucide-react";
+import UserMenu from "@/components/UserMenu";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 type TestStatus = "idle" | "testing" | "ok" | "error";
 
 interface ServiceConfig {
+  id: string;
   label: string;
   service: string;
+  icon: string;
   fields: { key: string; label: string; placeholder: string; type?: string }[];
   testable: boolean;
 }
 
 const SERVICES: ServiceConfig[] = [
   {
-    label: "Discord",
-    service: "discord",
+    id: "discord", label: "Discord", service: "discord", icon: "🎮",
     fields: [{ key: "discordWebhookUrl", label: "Webhook URL", placeholder: "https://discord.com/api/webhooks/..." }],
     testable: true,
   },
   {
-    label: "GitHub",
-    service: "github",
+    id: "github", label: "GitHub", service: "github", icon: "🐙",
     fields: [
-      { key: "githubToken", label: "Personal Access Token", placeholder: "ghp_...", type: "password" },
+      { key: "githubToken", label: "Personal Access Token", placeholder: "ghp_…", type: "password" },
       { key: "githubRepo", label: "Repository", placeholder: "owner/repo" },
     ],
     testable: true,
   },
   {
-    label: "Slack",
-    service: "slack",
-    fields: [{ key: "slackWebhookUrl", label: "Webhook URL", placeholder: "https://hooks.slack.com/services/..." }],
+    id: "slack", label: "Slack", service: "slack", icon: "💬",
+    fields: [{ key: "slackWebhookUrl", label: "Webhook URL", placeholder: "https://hooks.slack.com/services/…" }],
     testable: true,
   },
   {
-    label: "Google Sheets",
-    service: "google_sheets",
+    id: "google_sheets", label: "Google Sheets", service: "google_sheets", icon: "📊",
     fields: [
-      { key: "googleSheetsApiKey", label: "API Key", placeholder: "AIzaSy...", type: "password" },
+      { key: "googleSheetsApiKey", label: "API Key", placeholder: "AIzaSy…", type: "password" },
       { key: "googleSpreadsheetId", label: "Spreadsheet ID", placeholder: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" },
     ],
     testable: false,
   },
   {
-    label: "HubSpot",
-    service: "hubspot",
-    fields: [{ key: "hubspotApiKey", label: "API Key", placeholder: "pat-na1-...", type: "password" }],
+    id: "hubspot", label: "HubSpot", service: "hubspot", icon: "🔶",
+    fields: [{ key: "hubspotApiKey", label: "API Key", placeholder: "pat-na1-…", type: "password" }],
     testable: false,
   },
   {
-    label: "Stripe",
-    service: "stripe",
-    fields: [{ key: "stripeApiKey", label: "Secret Key", placeholder: "sk_live_...", type: "password" }],
+    id: "stripe", label: "Stripe", service: "stripe", icon: "💳",
+    fields: [{ key: "stripeApiKey", label: "Secret Key", placeholder: "sk_live_…", type: "password" }],
     testable: false,
   },
   {
-    label: "Airtable",
-    service: "airtable",
+    id: "airtable", label: "Airtable", service: "airtable", icon: "🗂️",
     fields: [
-      { key: "airtableApiKey", label: "API Key", placeholder: "pat...", type: "password" },
-      { key: "airtableBaseId", label: "Base ID", placeholder: "app..." },
+      { key: "airtableApiKey", label: "API Key", placeholder: "pat…", type: "password" },
+      { key: "airtableBaseId", label: "Base ID", placeholder: "app…" },
     ],
     testable: false,
   },
   {
-    label: "Notion",
-    service: "notion",
-    fields: [{ key: "notionApiKey", label: "Integration Secret", placeholder: "secret_...", type: "password" }],
+    id: "notion", label: "Notion", service: "notion", icon: "📝",
+    fields: [{ key: "notionApiKey", label: "Integration Secret", placeholder: "secret_…", type: "password" }],
     testable: false,
   },
   {
-    label: "SendGrid",
-    service: "sendgrid",
-    fields: [{ key: "sendgridApiKey", label: "API Key", placeholder: "SG...", type: "password" }],
+    id: "sendgrid", label: "SendGrid", service: "sendgrid", icon: "📧",
+    fields: [{ key: "sendgridApiKey", label: "API Key", placeholder: "SG…", type: "password" }],
     testable: false,
   },
 ];
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [values, setValues] = useState<Record<string, string>>({});
   const [testStatus, setTestStatus] = useState<Record<string, TestStatus>>({});
   const [testMsg, setTestMsg] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [aiProvider, setAiProvider] = useState("");
   const [aiApiKey, setAiApiKey] = useState("");
   const [cronInterval, setCronInterval] = useState(5);
   const [agentMission, setAgentMission] = useState("");
+  const [activeSection, setActiveSection] = useState("agent");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/settings");
     const data = await res.json();
     const v: Record<string, string> = {};
     for (const svc of SERVICES) {
-      for (const f of svc.fields) {
-        v[f.key] = data[f.key] ?? "";
-      }
+      for (const f of svc.fields) v[f.key] = data[f.key] ?? "";
     }
     setValues(v);
     setAiProvider(data.aiProvider ?? "");
@@ -108,18 +112,23 @@ export default function SettingsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const scrollTo = (id: string) => {
+    setActiveSection(id);
+    document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const saveService = async (service: ServiceConfig) => {
     setSaving((s) => ({ ...s, [service.service]: true }));
     const body: Record<string, string> = {};
-    for (const f of service.fields) {
-      body[f.key] = values[f.key] ?? "";
-    }
+    for (const f of service.fields) body[f.key] = values[f.key] ?? "";
     await fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     setSaving((s) => ({ ...s, [service.service]: false }));
+    setSaved((s) => ({ ...s, [service.service]: true }));
+    setTimeout(() => setSaved((s) => ({ ...s, [service.service]: false })), 2000);
   };
 
   const testService = async (service: string) => {
@@ -135,11 +144,15 @@ export default function SettingsPage() {
   };
 
   const saveAI = async () => {
+    setSaving((s) => ({ ...s, agent: true }));
     await fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ aiProvider, aiApiKey, cronIntervalMinutes: cronInterval, agentMission }),
     });
+    setSaving((s) => ({ ...s, agent: false }));
+    setSaved((s) => ({ ...s, agent: true }));
+    setTimeout(() => setSaved((s) => ({ ...s, agent: false })), 2000);
   };
 
   const skipSetup = async () => {
@@ -148,173 +161,260 @@ export default function SettingsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ setupComplete: true }),
     });
-    router.push("/");
+    router.push("/dashboard");
   };
 
+  const isConfigured = (svc: ServiceConfig) => svc.fields.every((f) => !!values[f.key]);
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="border-b border-zinc-800/60 px-6 py-4">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">← Dashboard</Link>
-            <span className="text-zinc-700">/</span>
-            <span className="text-sm font-semibold">Settings</span>
+    <div className="min-h-screen bg-muted/30">
+      {/* Header */}
+      <header className="border-b bg-card px-6 py-3 sticky top-0 z-20">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm">
+            <Link href="/dashboard" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-muted-foreground")}>
+              ← Dashboard
+            </Link>
+            <span className="text-border">/</span>
+            <span className="font-semibold">Settings</span>
           </div>
-          <button
-            onClick={skipSetup}
-            className="text-xs text-zinc-500 hover:text-zinc-300 border border-zinc-700 hover:border-zinc-500 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            Mark as configured
-          </button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={skipSetup}>
+              Mark as configured
+            </Button>
+            <UserMenu
+              name={session?.user?.name}
+              email={session?.user?.email}
+              image={session?.user?.image}
+            />
+          </div>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-6 py-10 space-y-8">
-        {/* Agent config */}
-        <Section title="Agent">
-          <Field label="Mission">
-            <textarea
-              value={agentMission}
-              onChange={(e) => setAgentMission(e.target.value)}
-              rows={3}
-              placeholder="Describe what you want the agent to do..."
-              className={inputCls + " resize-none"}
-            />
-          </Field>
-          <Field label="Check interval (minutes)">
-            <input
-              type="number"
-              value={cronInterval}
-              onChange={(e) => setCronInterval(Number(e.target.value))}
-              min={1}
-              className={inputCls}
-            />
-          </Field>
-          <Field label="AI Provider">
-            <select
-              value={aiProvider}
-              onChange={(e) => setAiProvider(e.target.value)}
-              className={inputCls}
-            >
-              <option value="">Select provider</option>
-              <option value="google">Google Gemini</option>
-              <option value="anthropic">Anthropic Claude</option>
-              <option value="openai">OpenAI</option>
-            </select>
-          </Field>
-          <Field label="AI API Key">
-            <input
-              type="password"
-              value={aiApiKey}
-              onChange={(e) => setAiApiKey(e.target.value)}
-              placeholder="Paste your API key..."
-              className={inputCls}
-            />
-          </Field>
-          <div className="flex gap-2 pt-1">
-            <SaveBtn onClick={saveAI} />
-            <TestBtn
-              onClick={() => testService("ai")}
-              status={testStatus["ai"] ?? "idle"}
-              msg={testMsg["ai"]}
-            />
-          </div>
-        </Section>
-
-        {/* Per-service sections */}
-        {SERVICES.map((svc) => (
-          <Section key={svc.service} title={svc.label}>
-            {svc.fields.map((f) => (
-              <Field key={f.key} label={f.label}>
-                <input
-                  type={f.type ?? "text"}
-                  value={values[f.key] ?? ""}
-                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder}
-                  className={inputCls}
-                />
-              </Field>
-            ))}
-            <div className="flex gap-2 pt-1">
-              <SaveBtn
-                onClick={() => saveService(svc)}
-                loading={saving[svc.service]}
+      <div className="max-w-5xl mx-auto px-6 py-8 flex gap-8">
+        {/* Sticky left nav */}
+        <aside className="w-48 shrink-0 hidden md:block">
+          <nav className="sticky top-20 space-y-0.5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium px-3 mb-2">
+              Sections
+            </p>
+            <NavItem active={activeSection === "agent"} onClick={() => scrollTo("agent")} icon="⚡" label="Agent" />
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium px-3 mt-4 mb-2">
+              Integrations
+            </p>
+            {SERVICES.map((svc) => (
+              <NavItem
+                key={svc.id}
+                active={activeSection === svc.id}
+                onClick={() => scrollTo(svc.id)}
+                icon={svc.icon}
+                label={svc.label}
+                configured={isConfigured(svc)}
               />
-              {svc.testable && (
-                <TestBtn
-                  onClick={() => testService(svc.service)}
-                  status={testStatus[svc.service] ?? "idle"}
-                  msg={testMsg[svc.service]}
-                />
-              )}
-            </div>
-          </Section>
-        ))}
+            ))}
+          </nav>
+        </aside>
 
-        <div className="text-center pt-4">
-          <Link href="/setup" className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
-            Re-run setup chat →
-          </Link>
-        </div>
-      </main>
+        {/* Main content */}
+        <main className="flex-1 min-w-0 space-y-4">
+          {/* Agent section */}
+          <section id="section-agent" className="scroll-mt-20">
+            <Card>
+              <CardHeader className="border-b">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center text-base">⚡</span>
+                    <div>
+                      <CardTitle className="text-sm">Agent</CardTitle>
+                      <CardDescription>Configure your agent&apos;s mission and AI model</CardDescription>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-5 space-y-4">
+                <FieldGroup label="Mission">
+                  <Textarea
+                    value={agentMission}
+                    onChange={(e) => setAgentMission(e.target.value)}
+                    placeholder="Describe what you want the agent to do…"
+                    className="resize-none min-h-[80px]"
+                  />
+                </FieldGroup>
+                <div className="grid grid-cols-2 gap-4">
+                  <FieldGroup label="Check interval (minutes)">
+                    <Input
+                      type="number"
+                      value={cronInterval}
+                      onChange={(e) => setCronInterval(Number(e.target.value))}
+                      min={1}
+                    />
+                  </FieldGroup>
+                  <FieldGroup label="AI Provider">
+                    <select
+                      value={aiProvider}
+                      onChange={(e) => setAiProvider(e.target.value)}
+                      className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 transition-colors"
+                    >
+                      <option value="">Select provider</option>
+                      <option value="google">Google Gemini</option>
+                      <option value="anthropic">Anthropic Claude</option>
+                      <option value="openai">OpenAI</option>
+                    </select>
+                  </FieldGroup>
+                </div>
+                <FieldGroup label="AI API Key">
+                  <Input
+                    type="password"
+                    value={aiApiKey}
+                    onChange={(e) => setAiApiKey(e.target.value)}
+                    placeholder="Paste your API key…"
+                  />
+                </FieldGroup>
+              </CardContent>
+              <CardFooter className="gap-2">
+                <SaveButton onClick={saveAI} loading={saving["agent"]} saved={saved["agent"]} />
+                <TestButton onClick={() => testService("ai")} status={testStatus["ai"] ?? "idle"} msg={testMsg["ai"]} />
+              </CardFooter>
+            </Card>
+          </section>
+
+          <Separator />
+
+          {/* Per-service sections */}
+          {SERVICES.map((svc) => (
+            <section key={svc.service} id={`section-${svc.id}`} className="scroll-mt-20">
+              <Card>
+                <CardHeader className="border-b">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="w-9 h-9 bg-muted rounded-xl flex items-center justify-center text-base">
+                        {svc.icon}
+                      </span>
+                      <div>
+                        <CardTitle className="text-sm">{svc.label}</CardTitle>
+                        <CardDescription>Connect your {svc.label} account</CardDescription>
+                      </div>
+                    </div>
+                    <Badge
+                      variant={isConfigured(svc) ? "outline" : "secondary"}
+                      className={cn(isConfigured(svc) && "border-emerald-500/20 bg-emerald-500/10 text-emerald-400")}
+                    >
+                      {isConfigured(svc) ? "Connected" : "Not configured"}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-5 space-y-4">
+                  {svc.fields.map((f) => (
+                    <FieldGroup key={f.key} label={f.label}>
+                      <Input
+                        type={f.type ?? "text"}
+                        value={values[f.key] ?? ""}
+                        onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                        placeholder={f.placeholder}
+                      />
+                    </FieldGroup>
+                  ))}
+                </CardContent>
+                <CardFooter className="gap-2">
+                  <SaveButton
+                    onClick={() => saveService(svc)}
+                    loading={saving[svc.service]}
+                    saved={saved[svc.service]}
+                  />
+                  {svc.testable && (
+                    <TestButton
+                      onClick={() => testService(svc.service)}
+                      status={testStatus[svc.service] ?? "idle"}
+                      msg={testMsg[svc.service]}
+                    />
+                  )}
+                </CardFooter>
+              </Card>
+            </section>
+          ))}
+
+          <div className="text-center pt-4 pb-8">
+            <Link href="/dashboard" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Re-run setup chat →
+            </Link>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function NavItem({
+  active, onClick, icon, label, configured,
+}: { active: boolean; onClick: () => void; icon: string; label: string; configured?: boolean }) {
   return (
-    <section>
-      <p className="text-xs text-zinc-500 uppercase tracking-widest mb-3 font-medium">{title}</p>
-      <div className="bg-zinc-800/40 border border-zinc-700/50 rounded-xl p-5 space-y-4">
-        {children}
-      </div>
-    </section>
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-colors text-left",
+        active ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      )}
+    >
+      <span className="w-6 h-6 bg-muted rounded-md flex items-center justify-center text-xs shrink-0">{icon}</span>
+      <span className="flex-1 truncate">{label}</span>
+      {configured ? (
+        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+      ) : (
+        <ChevronRight className="size-3 text-muted-foreground/50 shrink-0" />
+      )}
+    </button>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs text-zinc-400 font-medium">{label}</label>
+      <label className="text-xs text-muted-foreground font-medium">{label}</label>
       {children}
     </div>
   );
 }
 
-function SaveBtn({ onClick, loading }: { onClick: () => void; loading?: boolean }) {
+function SaveButton({ onClick, loading, saved }: { onClick: () => void; loading?: boolean; saved?: boolean }) {
   return (
-    <button
+    <Button
       onClick={onClick}
       disabled={loading}
-      className="text-sm bg-zinc-700 hover:bg-zinc-600 text-zinc-100 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+      variant={saved ? "outline" : "default"}
+      size="sm"
+      className={cn(saved && "border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/10")}
     >
-      {loading ? "Saving..." : "Save"}
-    </button>
+      {loading ? <Loader2 className="size-3.5 animate-spin" /> : saved ? <CheckCircle2 className="size-3.5" /> : null}
+      {loading ? "Saving…" : saved ? "Saved" : "Save"}
+    </Button>
   );
 }
 
-function TestBtn({ onClick, status, msg }: { onClick: () => void; status: TestStatus; msg?: string }) {
-  const label =
-    status === "testing" ? "Testing..." :
-    status === "ok" ? "✓ " + (msg ?? "Connected") :
-    status === "error" ? "✗ " + (msg ?? "Failed") :
-    "Test";
-
-  const cls =
-    status === "ok" ? "text-emerald-400 border-emerald-800" :
-    status === "error" ? "text-red-400 border-red-800" :
-    "text-zinc-400 border-zinc-700 hover:border-zinc-500";
-
+function TestButton({ onClick, status, msg }: { onClick: () => void; status: TestStatus; msg?: string }) {
   return (
-    <button
+    <Button
       onClick={onClick}
       disabled={status === "testing"}
-      className={`text-sm border px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${cls}`}
+      variant="outline"
+      size="sm"
+      className={cn(
+        status === "ok" && "border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/10",
+        status === "error" && "border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/5"
+      )}
     >
-      {label}
-    </button>
+      {status === "testing" ? (
+        <Loader2 className="size-3.5 animate-spin" />
+      ) : status === "ok" ? (
+        <CheckCircle2 className="size-3.5" />
+      ) : status === "error" ? (
+        <XCircle className="size-3.5" />
+      ) : null}
+      {status === "testing" ? "Testing…"
+        : status === "ok" ? (msg ?? "Connected")
+        : status === "error" ? (msg ?? "Failed")
+        : "Test connection"}
+    </Button>
   );
 }
-
-const inputCls =
-  "w-full bg-zinc-900/80 border border-zinc-700/60 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors";
