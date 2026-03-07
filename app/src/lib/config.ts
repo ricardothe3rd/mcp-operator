@@ -86,6 +86,6 @@ export function readConfig(): MCPConfig {
 export function writeConfig(config: Partial<MCPConfig>): MCPConfig {
   const current = readConfig();
   const updated = { ...current, ...config };
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(updated, null, 2));
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(updated, null, 2), { mode: 0o600 });
   return updated;
 }

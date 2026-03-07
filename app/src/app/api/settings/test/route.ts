@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readConfig } from "@/lib/config";
 
+const ALLOWED_SERVICES = new Set(["discord", "github", "slack", "ai"]);
+
+// Auth enforced by middleware
 export async function POST(req: NextRequest) {
   const { service } = await req.json();
+
+  // Whitelist — reject unknown service names
+  if (!ALLOWED_SERVICES.has(String(service).toLowerCase())) {
+    return NextResponse.json({ ok: false, message: "Unknown service" }, { status: 400 });
+  }
+
   const config = readConfig();
 
   try {
@@ -31,8 +40,8 @@ export async function POST(req: NextRequest) {
         });
         if (!res.ok)
           return NextResponse.json({ ok: false, message: `GitHub returned ${res.status}` });
-        const data = await res.json();
-        return NextResponse.json({ ok: true, message: `Connected as ${data.login}` });
+        // Don't leak username — just confirm connected
+        return NextResponse.json({ ok: true, message: "GitHub token is valid" });
       }
 
       case "slack": {
@@ -58,17 +67,15 @@ export async function POST(req: NextRequest) {
         };
         return NextResponse.json({
           ok: true,
-          message: `${labels[config.aiProvider] ?? config.aiProvider} key looks good`,
+          message: `${labels[config.aiProvider] ?? "AI"} key saved`,
         });
       }
 
       default:
-        return NextResponse.json({ ok: true, message: `${service} config saved` });
+        return NextResponse.json({ ok: false, message: "Unknown service" }, { status: 400 });
     }
-  } catch (err) {
-    return NextResponse.json({
-      ok: false,
-      message: `Error: ${err instanceof Error ? err.message : "unknown"}`,
-    });
+  } catch {
+    // Don't expose internal error details
+    return NextResponse.json({ ok: false, message: "Connection test failed" });
   }
 }

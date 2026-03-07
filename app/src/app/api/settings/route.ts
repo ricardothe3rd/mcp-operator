@@ -1,11 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readConfig, writeConfig } from "@/lib/config";
 
+// Explicit allowlist — only these keys may be written via the API
+const ALLOWED_KEYS = new Set([
+  "setupComplete",
+  "agentMission",
+  "cronIntervalMinutes",
+  "enabledIntegrations",
+  "aiProvider",
+  "aiApiKey",
+  "aiModel",
+  "discordWebhookUrl",
+  "githubToken",
+  "githubRepo",
+  "slackWebhookUrl",
+  "googleSheetsApiKey",
+  "googleSpreadsheetId",
+  "hubspotApiKey",
+  "stripeApiKey",
+  "airtableApiKey",
+  "airtableBaseId",
+  "notionApiKey",
+  "sendgridApiKey",
+]);
+
 function maskKey(value: string): string {
   if (!value || value.length < 8) return value ? "••••••••" : "";
   return "••••" + value.slice(-4);
 }
 
+// Auth enforced by middleware
 export async function GET() {
   const config = readConfig();
   return NextResponse.json({
@@ -33,12 +57,21 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  // Only allow known config keys, reject masked values
   const safeBody: Record<string, unknown> = {};
+
   for (const [key, value] of Object.entries(body)) {
+    // Block keys not in whitelist
+    if (!ALLOWED_KEYS.has(key)) continue;
+    // Block masked placeholder values
     if (typeof value === "string" && value.startsWith("••••")) continue;
+    // Clamp cron interval to sane range
+    if (key === "cronIntervalMinutes") {
+      safeBody[key] = Math.max(1, Math.min(1440, Number(value) || 5));
+      continue;
+    }
     safeBody[key] = value;
   }
+
   const updated = writeConfig(safeBody);
   return NextResponse.json({ ok: true, setupComplete: updated.setupComplete });
 }

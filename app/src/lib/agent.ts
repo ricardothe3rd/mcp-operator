@@ -25,10 +25,19 @@ function getModel(config: MCPConfig) {
       const o = createOpenAI({ apiKey: config.aiApiKey });
       return o("gpt-4o-mini");
     }
-    case "anthropic":
-    default: {
+    case "anthropic": {
       const key = config.aiApiKey || process.env.ANTHROPIC_API_KEY || "";
       const a = createAnthropic({ apiKey: key });
+      return a("claude-haiku-4-5-20251001");
+    }
+    default: {
+      // Auto-detect from env
+      const googleKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      if (googleKey) {
+        const g = createGoogleGenerativeAI({ apiKey: googleKey });
+        return g("gemini-2.0-flash");
+      }
+      const a = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" });
       return a("claude-haiku-4-5-20251001");
     }
   }
