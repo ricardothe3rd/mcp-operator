@@ -3,6 +3,8 @@ import { generateText, tool, stepCountIs, zodSchema, type LanguageModel } from "
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createGroq } from "@ai-sdk/groq";
+import { createOllama } from "ollama-ai-provider";
 import { z } from "zod";
 import { readConfig, writeConfig } from "@/lib/config";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -16,46 +18,45 @@ const ALLOWED_CONFIG_KEYS = new Set([
   "aiProvider", "aiApiKey", "aiModel",
 ]);
 
-/** Auto-detect which API key is available and return a working model */
+/** Pick the best available model for the setup chat assistant */
 function getSetupModel(): LanguageModel {
-  // Check config file first (key saved via Settings page)
   const config = readConfig();
+
+  // 1. Groq — best free option for conversational setup (env var)
+  const groqKey = process.env.GROQ_API_KEY;
+  if (groqKey) {
+    return createGroq({ apiKey: groqKey })("llama-3.3-70b-versatile");
+  }
+
+  // 2. Config file — whatever the user saved in Settings
   if (config.aiProvider && config.aiApiKey) {
     switch (config.aiProvider) {
-      case "google": {
-        const g = createGoogleGenerativeAI({ apiKey: config.aiApiKey });
-        return g("gemini-2.0-flash");
-      }
-      case "anthropic": {
-        const a = createAnthropic({ apiKey: config.aiApiKey });
-        return a("claude-haiku-4-5-20251001");
-      }
-      case "openai": {
-        const o = createOpenAI({ apiKey: config.aiApiKey });
-        return o("gpt-4o-mini");
-      }
+      case "groq":
+        return createGroq({ apiKey: config.aiApiKey })("llama-3.3-70b-versatile");
+      case "google":
+        return createGoogleGenerativeAI({ apiKey: config.aiApiKey })("gemini-2.0-flash");
+      case "anthropic":
+        return createAnthropic({ apiKey: config.aiApiKey })("claude-haiku-4-5-20251001");
+      case "openai":
+        return createOpenAI({ apiKey: config.aiApiKey })("gpt-4o-mini");
     }
   }
 
-  // Fallback to environment variables
+  // 3. Environment variable fallbacks
   const googleKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (googleKey) {
-    const g = createGoogleGenerativeAI({ apiKey: googleKey });
-    return g("gemini-2.0-flash");
-  }
+  if (googleKey) return createGoogleGenerativeAI({ apiKey: googleKey })("gemini-2.0-flash");
+
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (anthropicKey) {
-    const a = createAnthropic({ apiKey: anthropicKey });
-    return a("claude-haiku-4-5-20251001");
-  }
+  if (anthropicKey) return createAnthropic({ apiKey: anthropicKey })("claude-haiku-4-5-20251001");
+
   const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey) {
-    const o = createOpenAI({ apiKey: openaiKey });
-    return o("gpt-4o-mini");
-  }
-  throw new Error(
-    "No AI API key found. Add your Google API key in Settings or set GOOGLE_API_KEY in .env.local"
-  );
+  if (openaiKey) return createOpenAI({ apiKey: openaiKey })("gpt-4o-mini");
+
+  // 4. Ollama — zero-cost local fallback (no key needed)
+  const ollamaBase = config.ollamaBaseUrl || process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+  const ollamaModel = config.ollamaModel || "llama3.2";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return createOllama({ baseURL: ollamaBase })(ollamaModel) as any;
 }
 
 const SETUP_SYSTEM_PROMPT = `You are the MCP Operator setup assistant. Your job is to onboard the user in two phases.
