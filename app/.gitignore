@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# mcp operator runtime files (may contain credentials)
+mcp-operator.config.json
+mcp-operator.activity.json
+mcp-operator.jobs.json
