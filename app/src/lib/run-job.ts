@@ -52,7 +52,7 @@ export async function runJob(
   // ── 4. Alert on repeated failures ────────────────────────────────────────
   if (!result.success && consecutiveFailures >= FAILURE_ALERT_THRESHOLD) {
     await sendAlert(
-      `⚠️ MCP Agent — Job "${job.name}" has failed ${consecutiveFailures} times in a row.\n\nLast error: ${result.message}\n\nCheck your Jobs tab to review or stop this job.`
+      `⚠️ MCP Operator — Job "${job.name}" has failed ${consecutiveFailures} times in a row.\n\nLast error: ${result.message}\n\nCheck your Jobs tab to review or stop this job.`
     );
   }
 

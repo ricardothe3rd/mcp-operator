@@ -25,6 +25,6 @@ export async function sendAlert(message: string): Promise<void> {
       });
     }
   } catch (err) {
-    console.error("[MCP Agent] Failed to send alert:", err);
+    console.error("[MCP Operator] Failed to send alert:", err);
   }
 }

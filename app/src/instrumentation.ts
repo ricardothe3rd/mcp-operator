@@ -16,12 +16,12 @@ export async function register() {
         const lastRun = job.lastRunAt ? new Date(job.lastRunAt).getTime() : 0;
 
         if (now - lastRun >= intervalMs) {
-          console.log(`[MCP Agent] Running job: ${job.name}`);
+          console.log(`[MCP Operator] Running job: ${job.name}`);
           await runJob(job);
         }
       }
     });
 
-    console.log("[MCP Agent] Job scheduler started — checking every minute");
+    console.log("[MCP Operator] Job scheduler started — checking every minute");
   }
 }
