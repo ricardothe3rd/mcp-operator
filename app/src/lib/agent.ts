@@ -7,6 +7,8 @@ import { createOllama } from "ollama-ai-provider";
 import { z } from "zod";
 import { readConfig, MCPConfig } from "./config";
 import { appendActivity } from "./activity";
+import { buildKnowledgeContext } from "./knowledge";
+import { Resend } from "resend";
 
 export interface AgentResult {
   success: boolean;
@@ -74,10 +76,12 @@ Do not ask for confirmation. Just act.`;
     ? `Trigger: ${trigger}\n\n${context}`
     : `Trigger: ${trigger}. Perform your mission.`;
 
+  const knowledgeContext = buildKnowledgeContext(`${mission} ${trigger}`);
+
   try {
     const result = await generateText({
       model: getModel(config),
-      system: systemPrompt,
+      system: systemPrompt + knowledgeContext,
       prompt: userMessage,
       stopWhen: stepCountIs(5),
       tools: buildTools(config),
@@ -223,6 +227,40 @@ function buildTools(config: MCPConfig) {
         if (!res.ok) return { ok: false, url: "" };
         const issue = await res.json();
         return { ok: true, url: issue.html_url };
+      },
+    });
+  }
+
+  // Email via Resend
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey) {
+    tools.send_email = tool<
+      { to: string; subject: string; body: string },
+      { ok: boolean; message: string }
+    >({
+      description: "Send an email to any address via Resend",
+      inputSchema: zodSchema(
+        z.object({
+          to: z.string().describe("Recipient email address"),
+          subject: z.string().describe("Email subject line"),
+          body: z.string().describe("Email body — plain text or simple HTML"),
+        })
+      ),
+      execute: async ({ to, subject, body }) => {
+        try {
+          const resend = new Resend(resendKey);
+          const isHtml = body.trim().startsWith("<");
+          const { error } = await resend.emails.send({
+            from: "MCP Operator <onboarding@resend.dev>",
+            to,
+            subject,
+            ...(isHtml ? { html: body } : { text: body }),
+          });
+          if (error) return { ok: false, message: error.message };
+          return { ok: true, message: `Email sent to ${to}` };
+        } catch (err) {
+          return { ok: false, message: err instanceof Error ? err.message : "Failed to send email" };
+        }
       },
     });
   }
