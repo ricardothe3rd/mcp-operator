@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Loader2, Zap, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function RunNowButton() {
   const [state, setState] = useState<"idle" | "running" | "done">("idle");
@@ -13,15 +15,15 @@ export default function RunNowButton() {
   };
 
   return (
-    <button
-      onClick={run}
-      disabled={state === "running"}
-      className="flex items-center gap-2 bg-zinc-100 text-zinc-900 rounded-lg px-4 py-2 text-sm font-semibold hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-    >
-      {state === "running" && (
-        <span className="w-3 h-3 border-2 border-zinc-400 border-t-zinc-900 rounded-full animate-spin" />
+    <Button onClick={run} disabled={state === "running"} size="sm">
+      {state === "running" ? (
+        <Loader2 className="size-3.5 animate-spin" />
+      ) : state === "done" ? (
+        <Check className="size-3.5" />
+      ) : (
+        <Zap className="size-3.5" />
       )}
-      {state === "done" ? "✓ Done" : state === "running" ? "Running..." : "Run Now"}
-    </button>
+      {state === "done" ? "Done" : state === "running" ? "Running…" : "Run Now"}
+    </Button>
   );
 }
