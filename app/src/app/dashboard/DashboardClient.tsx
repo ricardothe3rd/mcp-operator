@@ -124,9 +124,21 @@ export default function DashboardClient({
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+  }, []);
 
   useEffect(() => { setSessions(loadSessions()); }, []);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, sending]);
+  useEffect(() => {
+    if (isAtBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, sending]);
 
   const saveCurrentSession = useCallback((msgs: ChatMessage[], sid: string | null) => {
     if (!sid) return;
@@ -242,7 +254,7 @@ export default function DashboardClient({
         <div className="flex-1 flex flex-col min-w-0 bg-background">
 
           {/* Messages */}
-          <ScrollArea className="flex-1">
+          <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border">
             <div className="px-5 py-5 max-w-2xl mx-auto space-y-3">
               {messages.map((msg) => {
                 if (msg.role === "tool") {
@@ -291,7 +303,7 @@ export default function DashboardClient({
               )}
               <div ref={bottomRef} />
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Quick action pills */}
           <div className="shrink-0 px-5 pb-2">
