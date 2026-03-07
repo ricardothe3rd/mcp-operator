@@ -1,8 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateText, tool, stepCountIs, zodSchema } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { generateText, tool, stepCountIs, zodSchema, type LanguageModel } from "ai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { readConfig, writeConfig } from "@/lib/config";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { auth } from "@/auth";
+
+// Explicit allowlist for save_config tool — no arbitrary key injection
+const ALLOWED_CONFIG_KEYS = new Set([
+  "discordWebhookUrl", "githubToken", "githubRepo", "slackWebhookUrl",
+  "googleSheetsApiKey", "googleSpreadsheetId", "hubspotApiKey", "stripeApiKey",
+  "airtableApiKey", "airtableBaseId", "notionApiKey", "sendgridApiKey",
+  "aiProvider", "aiApiKey", "aiModel",
+]);
+
+/** Auto-detect which API key is available and return a working model */
+function getSetupModel(): LanguageModel {
+  // Check config file first (key saved via Settings page)
+  const config = readConfig();
+  if (config.aiProvider && config.aiApiKey) {
+    switch (config.aiProvider) {
+      case "google": {
+        const g = createGoogleGenerativeAI({ apiKey: config.aiApiKey });
+        return g("gemini-2.0-flash");
+      }
+      case "anthropic": {
+        const a = createAnthropic({ apiKey: config.aiApiKey });
+        return a("claude-haiku-4-5-20251001");
+      }
+      case "openai": {
+        const o = createOpenAI({ apiKey: config.aiApiKey });
+        return o("gpt-4o-mini");
+      }
+    }
+  }
+
+  // Fallback to environment variables
+  const googleKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (googleKey) {
+    const g = createGoogleGenerativeAI({ apiKey: googleKey });
+    return g("gemini-2.0-flash");
+  }
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (anthropicKey) {
+    const a = createAnthropic({ apiKey: anthropicKey });
+    return a("claude-haiku-4-5-20251001");
+  }
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    const o = createOpenAI({ apiKey: openaiKey });
+    return o("gpt-4o-mini");
+  }
+  throw new Error(
+    "No AI API key found. Add your Google API key in Settings or set GOOGLE_API_KEY in .env.local"
+  );
+}
 
 const SETUP_SYSTEM_PROMPT = `You are the MCP Operator setup assistant. Your job is to onboard the user in two phases.
 
@@ -45,10 +99,22 @@ const SERVICE_FIELD_MAP: Record<string, Record<string, string>> = {
 type ToolOutput = { ok: boolean; message: string; redirect?: string };
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+
+  // Rate limit: 30 chat messages per minute per user
+  const key = `chat:${session?.user?.email ?? "anon"}`;
+  const { ok, retryAfter } = checkRateLimit(key, 30, 60_000);
+  if (!ok) {
+    return NextResponse.json(
+      { error: "Too many requests", retryAfter },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } }
+    );
+  }
+
   const { messages } = await req.json();
 
   const result = await generateText({
-    model: anthropic("claude-haiku-4-5-20251001"),
+    model: getSetupModel(),
     system: SETUP_SYSTEM_PROMPT,
     messages,
     stopWhen: stepCountIs(10),
@@ -76,6 +142,11 @@ export async function POST(req: NextRequest) {
         execute: async ({ service, field, value }) => {
           const serviceFields = SERVICE_FIELD_MAP[service.toLowerCase()];
           const configKey = serviceFields?.[field] ?? field;
+
+          // Block any key not in the explicit allowlist
+          if (!ALLOWED_CONFIG_KEYS.has(configKey)) {
+            return { ok: false, message: `Unknown config key: ${configKey}` };
+          }
 
           writeConfig({ [configKey]: value } as Record<string, string>);
 
@@ -214,8 +285,9 @@ export async function POST(req: NextRequest) {
           })
         ),
         execute: async ({ minutes }) => {
-          writeConfig({ cronIntervalMinutes: minutes });
-          return { ok: true, message: `Cron set to every ${minutes} minutes` };
+          const clamped = Math.max(1, Math.min(1440, Math.round(minutes)));
+          writeConfig({ cronIntervalMinutes: clamped });
+          return { ok: true, message: `Cron set to every ${clamped} minutes` };
         },
       }),
 
@@ -226,7 +298,7 @@ export async function POST(req: NextRequest) {
           writeConfig({ setupComplete: true });
           return {
             ok: true,
-            redirect: "/",
+            redirect: "/dashboard",
             message: "Setup complete — your agent is live",
           };
         },
