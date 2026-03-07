@@ -1,6 +1,4 @@
-"use client";
-
-import { signIn } from "next-auth/react";
+import Link from "next/link";
 
 export default function SignInButton({
   className,
@@ -12,11 +10,11 @@ export default function SignInButton({
   children?: React.ReactNode;
 }) {
   return (
-    <button
-      onClick={() => signIn("google", { callbackUrl })}
+    <Link
+      href={`/auth/signin${callbackUrl !== "/dashboard" ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ""}`}
       className={className}
     >
       {children}
-    </button>
+    </Link>
   );
 }
