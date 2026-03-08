@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+
+export const maxDuration = 60;
 import { generateText, tool, stepCountIs, zodSchema } from "ai";
 import { createOllama } from "ai-sdk-ollama";
 import { createGroq } from "@ai-sdk/groq";
