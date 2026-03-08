@@ -3,6 +3,8 @@ import { runAgent } from "@/lib/agent";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { auth } from "@/auth";
 
+export const maxDuration = 60;
+
 export async function POST() {
   const session = await auth();
 
