@@ -6,7 +6,7 @@ export async function register() {
 
     // Single tick every minute — checks which jobs are due
     cron.schedule("* * * * *", async () => {
-      const jobs = readJobs();
+      const jobs = await readJobs();
       const now = Date.now();
 
       for (const job of jobs) {
