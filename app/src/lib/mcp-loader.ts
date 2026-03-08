@@ -37,7 +37,7 @@ export async function loadMCPTools(config: MCPConfig): Promise<MCPTools> {
       });
       toolMaps.push(await client.tools());
     } catch (err) {
-      console.error("[mcp-loader] GitHub MCP failed to start:", err);
+      console.warn("[mcp-loader] GitHub MCP unavailable — using fallback tools:", (err as Error).message);
     }
   }
 
@@ -54,7 +54,7 @@ export async function loadMCPTools(config: MCPConfig): Promise<MCPTools> {
       });
       toolMaps.push(await client.tools());
     } catch (err) {
-      console.error("[mcp-loader] Discord MCP failed to start:", err);
+      console.warn("[mcp-loader] Discord MCP unavailable — using fallback tools:", (err as Error).message);
     }
   }
 
@@ -67,7 +67,7 @@ export async function loadMCPTools(config: MCPConfig): Promise<MCPTools> {
       });
       toolMaps.push(await client.tools());
     } catch (err) {
-      console.error("[mcp-loader] Airtable MCP failed to start:", err);
+      console.warn("[mcp-loader] Airtable MCP unavailable — using fallback tools:", (err as Error).message);
     }
   }
 
@@ -79,7 +79,7 @@ export async function loadMCPTools(config: MCPConfig): Promise<MCPTools> {
       });
       toolMaps.push(await client.tools());
     } catch (err) {
-      console.error("[mcp-loader] Resend MCP failed to start:", err);
+      console.warn("[mcp-loader] Resend MCP unavailable — using fallback tools:", (err as Error).message);
     }
   }
 
