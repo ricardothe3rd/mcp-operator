@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { readConfig } from "@/lib/config";
+import { loadConfig } from "@/lib/config";
 import { readActivity, type ActivityEntry } from "@/lib/activity";
 import { auth } from "@/auth";
 import DashboardClient from "./DashboardClient";
@@ -38,8 +38,8 @@ export interface SerializedConfig {
 
 export default async function Dashboard() {
   const session = await auth();
-  const config = readConfig();
-  const activity: ActivityEntry[] = readActivity(50);
+  const config = await loadConfig();
+  const activity: ActivityEntry[] = await readActivity(50);
 
   const apiKeyCount = CREDENTIAL_FIELDS.filter((f) => !!config[f]).length;
   const cutoff = Date.now() - 86_400_000;
