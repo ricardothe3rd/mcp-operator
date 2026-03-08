@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readConfig } from "@/lib/config";
+import { loadConfig } from "@/lib/config";
 
 const ALLOWED_SERVICES = new Set(["discord", "github", "slack", "ai"]);
 
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, message: "Unknown service" }, { status: 400 });
   }
 
-  const config = readConfig();
+  const config = await loadConfig();
 
   try {
     switch (service.toLowerCase()) {
