@@ -11,6 +11,8 @@ export async function register() {
 
       for (const job of jobs) {
         if (!job.autoRun) continue;
+        // intervalMinutes: 0 means webhook-triggered only — skip in scheduler
+        if (!job.intervalMinutes || job.intervalMinutes <= 0) continue;
 
         const intervalMs = job.intervalMinutes * 60 * 1000;
         const lastRun = job.lastRunAt ? new Date(job.lastRunAt).getTime() : 0;
