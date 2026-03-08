@@ -9,7 +9,7 @@ export async function PATCH(
   await auth();
   const { id } = await params;
   const body = await req.json();
-  const updated = patchJob(id, body);
+  const updated = await patchJob(id, body);
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(updated);
 }
@@ -20,7 +20,7 @@ export async function DELETE(
 ) {
   await auth();
   const { id } = await params;
-  const ok = deleteJob(id);
+  const ok = await deleteJob(id);
   if (!ok) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
