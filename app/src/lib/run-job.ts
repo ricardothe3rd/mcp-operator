@@ -23,14 +23,17 @@ export async function runJob(
   let historyContext = "";
   if (recentRuns.length > 0) {
     historyContext =
-      "\n\nYour recent run history for this job:\n" +
+      "\n\nRecent run history (tool calls only):\n" +
       recentRuns
-        .map(
-          (e) =>
-            `[${new Date(e.timestamp).toLocaleString()}] ${e.success ? "✓" : "✗"} ${e.message}`
-        )
+        .map((e) => {
+          // Only show tool calls made — skip the final text summary to avoid feedback loops
+          const toolCalls = e.actions.filter((a) => a.startsWith("Called "));
+          const status = e.success ? "✓" : "✗";
+          const calls = toolCalls.length > 0 ? toolCalls.join(", ") : "no tool calls";
+          return `[${new Date(e.timestamp).toLocaleString()}] ${status} ${calls}`;
+        })
         .join("\n") +
-      "\n\nUse this history to avoid repeating mistakes and build on previous successes.";
+      "\n\nIf previous runs show 'no tool calls', that means tools failed to load — they are now loaded and ready. Use them.";
   }
 
   const context = triggerContext

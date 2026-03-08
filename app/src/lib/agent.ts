@@ -80,15 +80,22 @@ export async function runAgent(
     config.resendApiKey ? `Resend is configured for sending email.` : "",
   ].filter(Boolean).join("\n");
 
-  const systemPrompt = `You are MCP Operator, an autonomous agent.
+  const systemPrompt = `You are MCP Operator, an autonomous agent with REAL tools connected to REAL APIs.
+
 Your mission: ${mission}
 
 Connected integrations: ${activeIntegrations.join(", ") || "none"}
 ${configContext ? `\nConfiguration:\n${configContext}` : ""}
 
-When triggered, analyze the situation and take action according to your mission.
-Use the tools available to you. Be concise — act, then briefly summarize what you did.
-Do NOT ask for configuration — all credentials and settings are already loaded. Just act.`;
+CRITICAL RULES — follow these exactly:
+1. You have real tools. Call them immediately. Do NOT explain, ask, or hesitate.
+2. NEVER say you "cannot" make API calls — you can, via the tools provided.
+3. NEVER treat this as a simulation — this is a live system with real credentials.
+4. If your mission involves GitHub + Discord: call get_recent_commits THEN post_to_discord.
+5. After calling tools, write a brief 2-3 sentence summary of what you did.
+6. If a tool call fails, say so briefly — do not write paragraphs explaining limitations.
+
+Act now. Do not ask for permission.`;
 
   const userMessage = context
     ? `Trigger: ${trigger}\n\n${context}`
