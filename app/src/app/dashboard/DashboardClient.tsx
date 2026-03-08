@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Send, Plus, Link2, TestTube2, BarChart3, Loader2, Play, Square, Trash2, Zap, ChevronDown } from "lucide-react";
+import { Send, Plus, Link2, TestTube2, BarChart3, Loader2, Play, Square, Trash2, Zap, ChevronDown, PanelLeftClose, PanelLeftOpen, LayoutDashboard, History, KeyRound, BriefcaseBusiness, ScrollText, Menu, X, Settings } from "lucide-react";
 import UserMenu from "@/components/UserMenu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { DashboardStats, SerializedConfig } from "./page";
 import type { ActivityEntry } from "@/lib/activity";
 
@@ -118,6 +119,10 @@ export default function DashboardClient({
 }: Props) {
   const router = useRouter();
 
+  const [screenSize, setScreenSize] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_CHAT_MESSAGE]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -132,6 +137,21 @@ export default function DashboardClient({
     if (!el) return;
     isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
   }, []);
+
+  useEffect(() => {
+    const update = () => {
+      const w = window.innerWidth;
+      setScreenSize(w < 768 ? "mobile" : w < 1024 ? "tablet" : "desktop");
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
+    if (screenSize === "desktop") setSidebarOpen(true);
+    if (screenSize === "tablet") setSidebarOpen(false);
+  }, [screenSize]);
 
   useEffect(() => { setSessions(loadSessions()); }, []);
   useEffect(() => {
@@ -189,17 +209,27 @@ export default function DashboardClient({
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div className="h-dvh flex flex-col bg-background overflow-hidden">
 
       {/* ── Header ── */}
-      <header className="shrink-0 border-b border-border bg-card px-6 py-3 flex items-center justify-between">
+      <header className="shrink-0 border-b border-border bg-card px-3 md:px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          {screenSize === "mobile" && (
+            <button
+              onClick={() => setMobileDrawerOpen(true)}
+              className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              title="Open menu"
+            >
+              <Menu className="size-4" />
+            </button>
+          )}
           <span className="text-primary text-lg">⚡</span>
           <span className="font-semibold tracking-wide text-foreground">MCP Operator</span>
         </div>
         <div className="flex items-center gap-2">
           <Link href="/settings" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-            Settings
+            <Settings className="size-4 sm:hidden" />
+            <span className="hidden sm:inline">Settings</span>
           </Link>
           <UserMenu name={userName} email={userEmail} image={userImage} />
         </div>
@@ -208,47 +238,76 @@ export default function DashboardClient({
       {/* ── Two-pane body ── */}
       <div className="flex flex-1 min-h-0">
 
-        {/* LEFT: Tabbed Panel (22%) */}
-        <div className="w-[22%] shrink-0 border-r border-border flex flex-col bg-background">
-          <Tabs defaultValue="overview" className="flex flex-col h-full">
-            <TabsList
-              variant="line"
-              className="w-full justify-start rounded-none border-b border-border px-2 h-9 gap-0 bg-transparent shrink-0"
-            >
-              <TabsTrigger value="overview" className="px-2 text-[11px]">Overview</TabsTrigger>
-              <TabsTrigger value="history"  className="px-2 text-[11px]">History</TabsTrigger>
-              <TabsTrigger value="keys"     className="px-2 text-[11px]">Keys</TabsTrigger>
-              <TabsTrigger value="jobs"     className="px-2 text-[11px]">Jobs</TabsTrigger>
-              <TabsTrigger value="logs"     className="px-2 text-[11px]">Logs</TabsTrigger>
-            </TabsList>
+        {/* LEFT: Tabbed Panel — tablet/desktop inline */}
+        {screenSize !== "mobile" && (
+          <div className={cn(
+            "shrink-0 border-r border-border flex flex-col bg-background transition-all duration-200",
+            sidebarOpen ? "w-[22%]" : "w-10"
+          )}>
+            {sidebarOpen ? (
+              <>
+                <SidebarPanel
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                  config={config}
+                  activity={activity}
+                  stats={stats}
+                  sessions={sessions}
+                  onCollapse={() => setSidebarOpen(false)}
+                />
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-1 pt-2">
+                {([
+                  { value: "overview", icon: LayoutDashboard, label: "Overview" },
+                  { value: "history",  icon: History,          label: "History"  },
+                  { value: "keys",     icon: KeyRound,         label: "Keys"     },
+                  { value: "jobs",     icon: BriefcaseBusiness,label: "Jobs"     },
+                  { value: "logs",     icon: ScrollText,       label: "Logs"     },
+                ] as const).map(({ value, icon: Icon, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => { setActiveTab(value); setSidebarOpen(true); }}
+                    className={cn(
+                      "p-1.5 rounded hover:bg-muted transition-colors",
+                      activeTab === value ? "text-foreground bg-muted" : "text-muted-foreground hover:text-foreground"
+                    )}
+                    title={label}
+                  >
+                    <Icon className="size-4" />
+                  </button>
+                ))}
+                <div className="mt-auto pb-2">
+                  <button
+                    onClick={() => setSidebarOpen(true)}
+                    className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title="Expand sidebar"
+                  >
+                    <PanelLeftOpen className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
-            <TabsContent value="overview" className="flex-1 overflow-hidden">
-              <ScrollArea className="h-full">
-                <div className="p-4"><OverviewTab config={config} activity={activity} stats={stats} /></div>
-              </ScrollArea>
-            </TabsContent>
-            <TabsContent value="history" className="flex-1 overflow-hidden">
-              <ScrollArea className="h-full">
-                <div className="p-4"><HistoryTab sessions={sessions} /></div>
-              </ScrollArea>
-            </TabsContent>
-            <TabsContent value="keys" className="flex-1 overflow-hidden">
-              <ScrollArea className="h-full">
-                <div className="p-4"><KeysTab config={config} /></div>
-              </ScrollArea>
-            </TabsContent>
-            <TabsContent value="jobs" className="flex-1 overflow-hidden">
-              <ScrollArea className="h-full">
-                <div className="p-3"><JobsTab /></div>
-              </ScrollArea>
-            </TabsContent>
-            <TabsContent value="logs" className="flex-1 overflow-hidden">
-              <ScrollArea className="h-full">
-                <div className="p-4"><LogsTab activity={activity} /></div>
-              </ScrollArea>
-            </TabsContent>
-          </Tabs>
-        </div>
+        {/* LEFT: Mobile Sheet drawer */}
+        {screenSize === "mobile" && (
+          <Sheet open={mobileDrawerOpen} onOpenChange={setMobileDrawerOpen}>
+            <SheetContent side="left" className="w-[80%] max-w-xs p-0">
+              <span className="sr-only">Navigation menu</span>
+              <SidebarPanel
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                config={config}
+                activity={activity}
+                stats={stats}
+                sessions={sessions}
+                onClose={() => setMobileDrawerOpen(false)}
+              />
+            </SheetContent>
+          </Sheet>
+        )}
 
         {/* RIGHT: Chat Pane (60%) */}
         <div className="flex-1 flex flex-col min-w-0 bg-background">
@@ -274,7 +333,7 @@ export default function DashboardClient({
                 return (
                   <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                     <div className={cn(
-                      "max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap",
+                      "max-w-[85%] sm:max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap",
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground rounded-br-sm"
                         : "bg-card border border-border text-foreground rounded-bl-sm"
@@ -307,7 +366,7 @@ export default function DashboardClient({
 
           {/* Quick action pills */}
           <div className="shrink-0 px-5 pb-2">
-            <div className="max-w-2xl mx-auto flex gap-2 flex-wrap">
+            <div className="max-w-2xl mx-auto flex gap-2 overflow-x-auto scrollbar-none pb-1">
               <Button variant="outline" size="xs" onClick={() => setInput("Add my API key")}>
                 <Plus className="size-3" /> Add API Key
               </Button>
@@ -326,7 +385,7 @@ export default function DashboardClient({
           <Separator />
 
           {/* Input bar */}
-          <div className="shrink-0 bg-card px-5 py-3">
+          <div className="shrink-0 bg-card px-5 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
             <div className="max-w-2xl mx-auto flex gap-2 items-end">
               <Textarea
                 value={input}
@@ -346,6 +405,82 @@ export default function DashboardClient({
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Sidebar Panel (shared between inline + Sheet drawer) ─────────────────────
+
+interface SidebarPanelProps {
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+  config: SerializedConfig;
+  activity: ActivityEntry[];
+  stats: DashboardStats;
+  sessions: ChatSession[];
+  onCollapse?: () => void;
+  onClose?: () => void;
+}
+
+function SidebarPanel({ activeTab, onTabChange, config, activity, stats, sessions, onCollapse, onClose }: SidebarPanelProps) {
+  return (
+    <Tabs value={activeTab} onValueChange={onTabChange} className="flex flex-col h-full">
+      <div className="flex items-center border-b border-border shrink-0">
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="shrink-0 p-2 ml-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="size-4" />
+          </button>
+        )}
+        <TabsList
+          variant="line"
+          className="flex-1 justify-start rounded-none px-1 h-9 gap-0 bg-transparent border-none min-w-0 min-h-[40px]"
+        >
+          <TabsTrigger value="overview" className="px-2 text-[11px] gap-1 min-w-0 h-full"><LayoutDashboard className="size-3 shrink-0" /><span className="truncate">Overview</span></TabsTrigger>
+          <TabsTrigger value="history"  className="px-2 text-[11px] gap-1 min-w-0 h-full"><History className="size-3 shrink-0" /><span className="truncate">History</span></TabsTrigger>
+          <TabsTrigger value="keys"     className="px-2 text-[11px] gap-1 min-w-0 h-full"><KeyRound className="size-3 shrink-0" /><span className="truncate">Keys</span></TabsTrigger>
+          <TabsTrigger value="jobs"     className="px-2 text-[11px] gap-1 min-w-0 h-full"><BriefcaseBusiness className="size-3 shrink-0" /><span className="truncate">Jobs</span></TabsTrigger>
+          <TabsTrigger value="logs"     className="px-2 text-[11px] gap-1 min-w-0 h-full"><ScrollText className="size-3 shrink-0" /><span className="truncate">Logs</span></TabsTrigger>
+        </TabsList>
+        {onCollapse && (
+          <button
+            onClick={onCollapse}
+            className="shrink-0 p-1.5 mr-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            title="Collapse sidebar"
+          >
+            <PanelLeftClose className="size-3.5" />
+          </button>
+        )}
+      </div>
+
+      <TabsContent value="overview" className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="p-4"><OverviewTab config={config} activity={activity} stats={stats} /></div>
+        </ScrollArea>
+      </TabsContent>
+      <TabsContent value="history" className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="p-4"><HistoryTab sessions={sessions} /></div>
+        </ScrollArea>
+      </TabsContent>
+      <TabsContent value="keys" className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="p-4"><KeysTab config={config} /></div>
+        </ScrollArea>
+      </TabsContent>
+      <TabsContent value="jobs" className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="p-3"><JobsTab /></div>
+        </ScrollArea>
+      </TabsContent>
+      <TabsContent value="logs" className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="p-4"><LogsTab activity={activity} /></div>
+        </ScrollArea>
+      </TabsContent>
+    </Tabs>
   );
 }
 
