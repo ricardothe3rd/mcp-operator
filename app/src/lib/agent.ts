@@ -5,7 +5,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createGroq } from "@ai-sdk/groq";
 import { createOllama } from "ai-sdk-ollama";
 import { z } from "zod";
-import { readConfig, MCPConfig } from "./config";
+import { loadConfig, MCPConfig } from "./config";
 import { appendActivity } from "./activity";
 import { buildKnowledgeContext } from "./knowledge";
 import { loadMCPTools } from "./mcp-loader";
@@ -62,7 +62,7 @@ export async function runAgent(
   jobMission?: string,
   jobIntegrations?: string[]
 ): Promise<AgentResult> {
-  const config = readConfig();
+  const config = await loadConfig();
   const mission = jobMission || config.agentMission || FALLBACK_MISSION;
   const actions: string[] = [];
 
