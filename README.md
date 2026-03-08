@@ -8,3 +8,4 @@ Autonomous AI agent platform for scheduling and running automations.
 - Trigger via webhook in real time
 - Chat-based job creation with Claude
 - Multi-provider AI support (Anthropic, Groq, OpenAI, Ollama)
+- Activity logs with per-job history and self-correction
