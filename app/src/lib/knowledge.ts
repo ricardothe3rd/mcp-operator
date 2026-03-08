@@ -27,17 +27,54 @@ Key concepts:
     keywords: ["job", "jobs", "create", "run", "schedule", "interval", "auto", "mission", "task", "automation"],
     content: `A Job is one automation. Each job has:
 - Name: a label for the job
-- Mission: plain-English description of what the agent should do each run (e.g. "Check for new GitHub PRs and post a summary to Discord")
-- Interval: how often to run (in minutes). Set to 0 to disable auto-run.
-- Integrations: which services the agent can use for this job
+- Mission: plain-English description of what the agent should do each run
+- Interval: how often to run in minutes (1440 = daily, 60 = hourly, 30 = every 30 min)
+- Integrations: which services are needed, e.g. ["github", "discord"]
+- autoRun: true means it runs on the schedule automatically
 
-To create a job: go to the Jobs tab on the dashboard → click "+ New Job" → fill in name, mission, interval.
+To create a job: call the create_job tool directly. Do NOT tell the user to click buttons or fill in fields. YOU infer the parameters from their description and call the tool.
 
-To run a job manually: click the Play button on the job card. The agent runs immediately and logs the result.
-
-To stop auto-run: click the Stop button or set the interval to 0.
+To run a job manually: the user clicks the Play button on the job card in the Jobs tab.
+To stop auto-run: the user clicks Stop on the job card.
 
 The agent sees the last 5 run results before each run so it can build on previous work.`,
+  },
+
+  {
+    id: "create-job-rules",
+    title: "Rules for Creating Jobs",
+    keywords: ["create", "set up", "automate", "want", "make", "build", "schedule", "every", "daily", "hourly", "automation", "job"],
+    content: `When a user wants to automate something, follow this exact sequence:
+
+STEP 0 — DISCOVER (if needed):
+If the user has not yet told you WHICH apps/services they want to use, ask ONE question:
+"What would you like to automate? Tell me which apps and what you'd like to happen."
+Do NOT check credentials yet. Do NOT assume any services.
+
+STEP 1 — UNDERSTAND:
+Once they describe the automation, identify the services involved.
+Infer integrations from the services they mention: github, discord, slack, airtable, resend, notion, stripe, hubspot.
+
+STEP 2 — CHECK CREDENTIALS (only for services they mentioned):
+Check credential status ONLY for the specific services needed for this automation.
+If a credential for a needed service is ✗ missing, say exactly:
+"You'll need to add your [service] credentials in Settings first."
+Then stop and wait. Do NOT mention services they didn't ask about.
+
+STEP 3 — CREATE (once all needed credentials are ✓ set):
+Call create_job immediately. Do not ask for confirmation.
+
+Rules:
+- NEVER ask the user to provide arrays, booleans, or parameter names. You fill those in.
+- NEVER say "update the integrations field" — that is your job, not theirs.
+- Infer the job name from what they said. Keep it short (3-5 words).
+- Write a clear mission statement yourself based on their description.
+- If they don't mention an interval, ask ONE question: "How often should this run — hourly, daily, or something else?"
+- Always set autoRun: true unless they say otherwise.
+
+Example — user says "post github commits to discord every hour":
+→ Check ONLY github + discord credentials
+→ If both ✓ set: call create_job with name="GitHub to Discord", mission="Fetch recent commits and events from the GitHub repo and post a summary to Discord.", integrations=["github","discord"], intervalMinutes=60, autoRun=true`,
   },
 
   {
