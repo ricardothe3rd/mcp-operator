@@ -6,7 +6,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
-import { readConfig, writeConfig } from "@/lib/config";
+import { loadConfig, writeConfig, type MCPConfig } from "@/lib/config";
 import { createJob } from "@/lib/jobs";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { auth } from "@/auth";
@@ -20,8 +20,7 @@ const ALLOWED_CONFIG_KEYS = new Set([
   "airtableApiKey", "airtableBaseId", "notionApiKey", "sendgridApiKey", "resendApiKey",
 ]);
 
-function getModel() {
-  const config = readConfig();
+function getModel(config: MCPConfig) {
   switch (config.aiProvider) {
     case "groq":
       return createGroq({ apiKey: config.aiApiKey })("llama-3.3-70b-versatile");
@@ -59,7 +58,7 @@ Rules:
 - If a test fails, tell the user what went wrong and ask them to try again.
 - Never echo raw credentials back to the user.`;
 
-function buildSystemPrompt(config: ReturnType<typeof readConfig>, knowledgeContext: string): string {
+function buildSystemPrompt(config: MCPConfig, knowledgeContext: string): string {
   if (config.setupComplete) {
     const integrations = config.enabledIntegrations.join(", ") || "none yet";
     const mission = config.agentMission || "Monitor connected platforms and report on activity.";
@@ -148,12 +147,12 @@ export async function POST(req: NextRequest) {
     ? buildKnowledgeContext(lastUserMessage.content ?? "")
     : "";
 
-  const config = readConfig();
+  const config = await loadConfig();
 
   let result;
   try {
     result = await generateText({
-      model: getModel(),
+      model: getModel(config),
       system: buildSystemPrompt(config, knowledgeContext),
       messages,
       stopWhen: stepCountIs(10),
@@ -187,13 +186,13 @@ export async function POST(req: NextRequest) {
             return { ok: false, message: `Unknown config key: ${configKey}` };
           }
 
-          writeConfig({ [configKey]: value } as Record<string, string>);
+          await writeConfig({ [configKey]: value } as Record<string, string>);
 
           if (service !== "ai") {
-            const config = readConfig();
+            const config = await loadConfig();
             const integrations = new Set(config.enabledIntegrations);
             integrations.add(service.toLowerCase());
-            writeConfig({ enabledIntegrations: Array.from(integrations) });
+            await writeConfig({ enabledIntegrations: Array.from(integrations) });
           }
 
           return { ok: true, message: `Saved ${service} ${field}` };
@@ -210,7 +209,7 @@ export async function POST(req: NextRequest) {
           })
         ),
         execute: async ({ service }) => {
-          const config = readConfig();
+          const config = await loadConfig();
           try {
             switch (service.toLowerCase()) {
               case "discord": {
@@ -299,7 +298,7 @@ export async function POST(req: NextRequest) {
           })
         ),
         execute: async ({ mission }) => {
-          writeConfig({ agentMission: mission });
+          await writeConfig({ agentMission: mission });
           return { ok: true, message: "Mission saved" };
         },
       }),
@@ -313,7 +312,7 @@ export async function POST(req: NextRequest) {
         ),
         execute: async ({ minutes }) => {
           const clamped = Math.max(1, Math.min(1440, Math.round(minutes)));
-          writeConfig({ cronIntervalMinutes: clamped });
+          await writeConfig({ cronIntervalMinutes: clamped });
           return { ok: true, message: `Cron set to every ${clamped} minutes` };
         },
       }),
@@ -333,7 +332,7 @@ export async function POST(req: NextRequest) {
           })
         ),
         execute: async ({ name, mission, integrations, intervalMinutes, autoRun }) => {
-          const job = createJob({ name, mission, integrations, intervalMinutes, autoRun });
+          const job = await createJob({ name, mission, integrations, intervalMinutes, autoRun });
           return { ok: true, message: `Job "${job.name}" created (id: ${job.id})` };
         },
       }),
@@ -342,7 +341,7 @@ export async function POST(req: NextRequest) {
         description: "Mark setup as complete and send the user to the dashboard",
         inputSchema: zodSchema(z.object({})),
         execute: async () => {
-          writeConfig({ setupComplete: true });
+          await writeConfig({ setupComplete: true });
           return {
             ok: true,
             redirect: "/dashboard",
