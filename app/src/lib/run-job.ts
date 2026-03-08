@@ -35,7 +35,7 @@ export async function runJob(
   const context = `Job: ${job.name}\nMission: ${job.mission}${historyContext}`;
 
   // ── 2. Run the agent ──────────────────────────────────────────────────────
-  const result = await runAgent("scheduled", context, job.id);
+  const result = await runAgent("scheduled", context, job.id, job.mission, job.integrations);
 
   // ── 3. Update job stats ───────────────────────────────────────────────────
   const consecutiveFailures = result.success

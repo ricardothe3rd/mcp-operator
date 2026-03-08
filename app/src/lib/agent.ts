@@ -58,16 +58,21 @@ function getModel(config: MCPConfig) {
 export async function runAgent(
   trigger: string,
   context?: string,
-  jobId?: string
+  jobId?: string,
+  jobMission?: string,
+  jobIntegrations?: string[]
 ): Promise<AgentResult> {
   const config = readConfig();
-  const mission = config.agentMission || FALLBACK_MISSION;
+  const mission = jobMission || config.agentMission || FALLBACK_MISSION;
   const actions: string[] = [];
+
+  // Use job-specific integrations if provided, otherwise fall back to all enabled
+  const activeIntegrations = jobIntegrations ?? config.enabledIntegrations;
 
   const systemPrompt = `You are MCP Operator, an autonomous agent.
 Your mission: ${mission}
 
-Connected integrations: ${config.enabledIntegrations.join(", ") || "none"}
+Connected integrations: ${activeIntegrations.join(", ") || "none"}
 
 When triggered, analyze the situation and take action according to your mission.
 Use the tools available to you. Be concise — act, then briefly summarize what you did.
@@ -79,8 +84,9 @@ Do not ask for confirmation. Just act.`;
 
   const knowledgeContext = buildKnowledgeContext(`${mission} ${trigger}`);
 
-  // Load MCP tools (GitHub, Discord, Airtable, Resend) + hardcoded tools (Slack)
-  const { tools: mcpTools, cleanup } = await loadMCPTools(config);
+  // Load only the MCPs needed for this job's integrations
+  const mcpConfig = { ...config, enabledIntegrations: activeIntegrations };
+  const { tools: mcpTools, cleanup } = await loadMCPTools(mcpConfig);
   const hardcodedTools = buildHardcodedTools(config);
   // MCP tools win on collision
   const tools = { ...hardcodedTools, ...mcpTools };
