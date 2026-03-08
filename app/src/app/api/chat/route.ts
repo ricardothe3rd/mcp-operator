@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateText, tool, stepCountIs, zodSchema, type LanguageModel } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createGroq } from "@ai-sdk/groq";
-import { createOllama } from "ollama-ai-provider";
+import { generateText, tool, stepCountIs, zodSchema } from "ai";
+import { createOllama } from "ai-sdk-ollama";
 import { z } from "zod";
 import { readConfig, writeConfig } from "@/lib/config";
+import { createJob } from "@/lib/jobs";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { auth } from "@/auth";
 import { buildKnowledgeContext } from "@/lib/knowledge";
@@ -16,42 +13,14 @@ import { buildKnowledgeContext } from "@/lib/knowledge";
 const ALLOWED_CONFIG_KEYS = new Set([
   "discordWebhookUrl", "githubToken", "githubRepo", "slackWebhookUrl",
   "googleSheetsApiKey", "googleSpreadsheetId", "hubspotApiKey", "stripeApiKey",
-  "airtableApiKey", "airtableBaseId", "notionApiKey", "sendgridApiKey",
+  "airtableApiKey", "airtableBaseId", "notionApiKey", "sendgridApiKey", "resendApiKey",
 ]);
 
-/** Pick the model — user config wins, Ollama is the default (no API key needed) */
-function getSetupModel(): LanguageModel {
+function getModel() {
   const config = readConfig();
-
-  // 1. Explicit user config in Settings
-  if (config.aiProvider) {
-    switch (config.aiProvider) {
-      case "ollama": {
-        const base = config.ollamaBaseUrl || "http://localhost:11434";
-        const model = config.ollamaModel || "llama3.2";
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return createOllama({ baseURL: base })(model) as any;
-      }
-      case "groq":
-        if (config.aiApiKey) return createGroq({ apiKey: config.aiApiKey })("llama-3.3-70b-versatile");
-        break;
-      case "google":
-        if (config.aiApiKey) return createGoogleGenerativeAI({ apiKey: config.aiApiKey })("gemini-2.0-flash");
-        break;
-      case "anthropic":
-        if (config.aiApiKey) return createAnthropic({ apiKey: config.aiApiKey })("claude-haiku-4-5-20251001");
-        break;
-      case "openai":
-        if (config.aiApiKey) return createOpenAI({ apiKey: config.aiApiKey })("gpt-4o-mini");
-        break;
-    }
-  }
-
-  // 2. Default: Ollama — runs locally, no API key required
-  const ollamaBase = config.ollamaBaseUrl || process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-  const ollamaModel = config.ollamaModel || "llama3.2";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return createOllama({ baseURL: ollamaBase })(ollamaModel) as any;
+  const base = config.ollamaBaseUrl || process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+  const model = config.ollamaModel || "llama3.2";
+  return createOllama({ baseURL: base })(model);
 }
 
 const SETUP_SYSTEM_PROMPT = `You are the MCP Operator setup assistant. Your job is to onboard the user in two phases.
@@ -60,13 +29,11 @@ PHASE 1 — CONNECT PLATFORMS:
 Start by asking: "What do you want to automate? Describe it naturally."
 From their answer, identify which platforms are needed (Discord, GitHub, Google Sheets, Slack, HubSpot, Stripe, Airtable, Notion, SendGrid).
 For each needed platform: ask for the credential ONE at a time → call save_config → call test_connection → confirm result → move to next.
-Also ask for their AI model provider (Google Gemini / OpenAI / Anthropic) and API key. Test it.
 Do NOT move to Phase 2 until all platforms are connected and tested.
 
 PHASE 2 — DEFINE BEHAVIOR:
 Once all connections are verified, confirm the mission based on what they described at the start.
-Ask how often to run automatically (default suggestion: every 10 minutes) → call set_cron_interval.
-Call set_agent_mission with a clear mission statement derived from their description.
+Ask how often to run automatically (default suggestion: every 24 hours) → call create_job with the mission, integrations, and interval.
 Summarize what was configured in a short bullet list, then call complete_setup.
 
 Rules:
@@ -80,17 +47,34 @@ function buildSystemPrompt(config: ReturnType<typeof readConfig>, knowledgeConte
   if (config.setupComplete) {
     const integrations = config.enabledIntegrations.join(", ") || "none yet";
     const mission = config.agentMission || "Monitor connected platforms and report on activity.";
+
+    // Tell the model exactly which credentials are set vs missing
+    const credStatus = [
+      `GitHub token: ${config.githubToken ? "✓ set" : "✗ missing"}`,
+      `GitHub repo: ${config.githubRepo ? `✓ set (${config.githubRepo})` : "✗ missing"}`,
+      `Discord webhook: ${config.discordWebhookUrl ? "✓ set" : "✗ missing"}`,
+      `Slack webhook: ${config.slackWebhookUrl ? "✓ set" : "✗ missing"}`,
+      `Airtable API key: ${config.airtableApiKey ? "✓ set" : "✗ missing"}`,
+      `Airtable base ID: ${config.airtableBaseId ? "✓ set" : "✗ missing"}`,
+    ].join("\n");
+
     return `You are MCP Operator, an AI assistant managing the user's automations.
 
 Current mission: ${mission}
 Connected integrations: ${integrations}
 
+Credential status:
+${credStatus}
+
 You can help the user:
 - Understand what their agent is doing and why
 - Add or update API keys (call save_config)
+- Create new scheduled jobs (call create_job)
 - Change the agent mission or schedule
 - Troubleshoot failed jobs or connections
 - Explain what each integration does
+
+IMPORTANT: Before calling create_job, check the credential status above. If any credentials required by the job are missing (✗), tell the user exactly which ones are missing and ask them to add them in Settings first. Only call create_job once all required credentials are set.
 
 Keep responses short and actionable. If asked to save a credential, use save_config then test_connection.
 Never echo raw credentials back to the user.
@@ -112,7 +96,6 @@ const SERVICE_FIELD_MAP: Record<string, Record<string, string>> = {
   airtable: { apiKey: "airtableApiKey", baseId: "airtableBaseId" },
   notion: { apiKey: "notionApiKey" },
   sendgrid: { apiKey: "sendgridApiKey" },
-  ai: { apiKey: "aiApiKey", provider: "aiProvider", model: "aiModel" },
 };
 
 type ToolOutput = { ok: boolean; message: string; redirect?: string };
@@ -140,13 +123,15 @@ export async function POST(req: NextRequest) {
 
   const config = readConfig();
 
-  const result = await generateText({
-    model: getSetupModel(),
-    system: buildSystemPrompt(config, knowledgeContext),
-    messages,
-    stopWhen: stepCountIs(10),
-    tools: {
-      save_config: tool<
+  let result;
+  try {
+    result = await generateText({
+      model: getModel(),
+      system: buildSystemPrompt(config, knowledgeContext),
+      messages,
+      stopWhen: stepCountIs(10),
+      tools: {
+        save_config: tool<
         { service: string; field: string; value: string },
         ToolOutput
       >({
@@ -264,18 +249,6 @@ export async function POST(req: NextRequest) {
                 };
               }
 
-              case "ai": {
-                if (!config.aiApiKey)
-                  return { ok: false, message: "No API key saved" };
-                const names: Record<string, string> = {
-                  google: "Google Gemini",
-                  anthropic: "Anthropic Claude",
-                  openai: "OpenAI",
-                };
-                const name = names[config.aiProvider] || config.aiProvider;
-                return { ok: true, message: `${name} API key saved` };
-              }
-
               default:
                 return { ok: true, message: `${service} configuration saved` };
             }
@@ -318,6 +291,26 @@ export async function POST(req: NextRequest) {
         },
       }),
 
+      create_job: tool<
+        { name: string; mission: string; integrations: string[]; intervalMinutes: number; autoRun: boolean },
+        ToolOutput
+      >({
+        description: "Create a new scheduled agent job",
+        inputSchema: zodSchema(
+          z.object({
+            name: z.string().describe("Short name for the job, e.g. 'Daily GitHub Briefing'"),
+            mission: z.string().describe("Full mission statement the agent will execute each run"),
+            integrations: z.array(z.string()).describe("Services needed, e.g. ['github', 'discord']"),
+            intervalMinutes: z.number().describe("How often to run in minutes, e.g. 1440 for 24h"),
+            autoRun: z.boolean().describe("Whether to start running automatically"),
+          })
+        ),
+        execute: async ({ name, mission, integrations, intervalMinutes, autoRun }) => {
+          const job = createJob({ name, mission, integrations, intervalMinutes, autoRun });
+          return { ok: true, message: `Job "${job.name}" created (id: ${job.id})` };
+        },
+      }),
+
       complete_setup: tool<Record<string, never>, ToolOutput>({
         description: "Mark setup as complete and send the user to the dashboard",
         inputSchema: zodSchema(z.object({})),
@@ -350,4 +343,12 @@ export async function POST(req: NextRequest) {
   const redirectTo = toolResults.find((t) => t.redirect)?.redirect ?? null;
 
   return NextResponse.json({ reply: result.text, toolResults, redirectTo });
+  } catch (err) {
+    console.error("[chat] generateText error:", err);
+    return NextResponse.json({
+      reply: `Ollama error: ${err instanceof Error ? err.message : "unknown error"}. Is Ollama running at ${process.env.OLLAMA_BASE_URL || "http://localhost:11434"}?`,
+      toolResults: [],
+      redirectTo: null,
+    });
+  }
 }
