@@ -53,18 +53,19 @@ const KEY_SLOTS = [
   { service: "Airtable",      field: "airtableApiKey",      label: "API Key",         icon: "📋" },
   { service: "Notion",        field: "notionApiKey",        label: "Integration Key", icon: "📝" },
   { service: "SendGrid",      field: "sendgridApiKey",      label: "API Key",         icon: "✉️" },
+  { service: "Resend",        field: "resendApiKey",        label: "API Key",         icon: "📨" },
   { service: "AI Provider",   field: "aiApiKey",            label: "API Key",         icon: "🤖" },
 ] as const;
 
 const INTEGRATION_ICONS: Record<string, string> = {
   discord: "🎮", github: "🐙", slack: "💬", google_sheets: "📊",
-  hubspot: "🔶", stripe: "💳", airtable: "📋", notion: "📝", sendgrid: "✉️",
+  hubspot: "🔶", stripe: "💳", airtable: "📋", notion: "📝", sendgrid: "✉️", resend: "📨",
 };
 
 const INTEGRATION_LABELS: Record<string, string> = {
   discord: "Discord", github: "GitHub", slack: "Slack",
   google_sheets: "Google Sheets", hubspot: "HubSpot", stripe: "Stripe",
-  airtable: "Airtable", notion: "Notion", sendgrid: "SendGrid",
+  airtable: "Airtable", notion: "Notion", sendgrid: "SendGrid", resend: "Resend",
 };
 
 const INITIAL_CHAT_MESSAGE: ChatMessage = {
