@@ -4,13 +4,13 @@ import { auth } from "@/auth";
 
 export async function GET() {
   await auth();
-  return NextResponse.json(readJobs());
+  return NextResponse.json(await readJobs());
 }
 
 export async function POST(req: NextRequest) {
   await auth();
   const body = await req.json();
-  const job = createJob({
+  const job = await createJob({
     name: body.name ?? "New Job",
     mission: body.mission ?? "",
     integrations: body.integrations ?? [],
