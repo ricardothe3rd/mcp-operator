@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { supabase } from "./supabase";
 
 export interface ActivityEntry {
   id: string;
@@ -11,33 +10,45 @@ export interface ActivityEntry {
   jobId?: string;
 }
 
-const ACTIVITY_PATH = path.join(process.cwd(), "mcp-operator.activity.json");
-const MAX_ENTRIES = 50;
-
-export function readActivityByJob(jobId: string, limit = 5): ActivityEntry[] {
-  return readActivity(50).filter((e) => e.jobId === jobId).slice(0, limit);
+export async function readActivityByJob(jobId: string, limit = 5): Promise<ActivityEntry[]> {
+  const { data } = await supabase
+    .from("activity")
+    .select("*")
+    .eq("job_id", jobId)
+    .order("timestamp", { ascending: false })
+    .limit(limit);
+  return (data ?? []).map(toEntry);
 }
 
-export function readActivity(limit = 20): ActivityEntry[] {
-  try {
-    if (!fs.existsSync(ACTIVITY_PATH)) return [];
-    const raw = fs.readFileSync(ACTIVITY_PATH, "utf-8");
-    const entries: ActivityEntry[] = JSON.parse(raw);
-    return entries.slice(0, limit);
-  } catch {
-    return [];
-  }
+export async function readActivity(limit = 20): Promise<ActivityEntry[]> {
+  const { data } = await supabase
+    .from("activity")
+    .select("*")
+    .order("timestamp", { ascending: false })
+    .limit(limit);
+  return (data ?? []).map(toEntry);
 }
 
 export async function appendActivity(
   entry: Omit<ActivityEntry, "id" | "timestamp">
 ): Promise<void> {
-  const existing = readActivity(MAX_ENTRIES);
-  const newEntry: ActivityEntry = {
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    timestamp: new Date().toISOString(),
-    ...entry,
+  await supabase.from("activity").insert({
+    trigger: entry.trigger,
+    actions: entry.actions,
+    success: entry.success,
+    message: entry.message,
+    job_id: entry.jobId ?? null,
+  });
+}
+
+function toEntry(row: Record<string, unknown>): ActivityEntry {
+  return {
+    id: row.id as string,
+    timestamp: row.timestamp as string,
+    trigger: row.trigger as string,
+    actions: row.actions as string[],
+    success: row.success as boolean,
+    message: row.message as string,
+    jobId: row.job_id as string | undefined,
   };
-  const updated = [newEntry, ...existing].slice(0, MAX_ENTRIES);
-  fs.writeFileSync(ACTIVITY_PATH, JSON.stringify(updated, null, 2));
 }
