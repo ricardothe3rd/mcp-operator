@@ -14,7 +14,8 @@ const FAILURE_ALERT_THRESHOLD = 3;
  *  4. Sends a Discord/Slack alert if the job has failed repeatedly.
  */
 export async function runJob(
-  job: Job
+  job: Job,
+  triggerContext?: string
 ): Promise<{ success: boolean; message: string }> {
   // ── 1. Build history context ──────────────────────────────────────────────
   const recentRuns = readActivityByJob(job.id, 5);
@@ -32,7 +33,9 @@ export async function runJob(
       "\n\nUse this history to avoid repeating mistakes and build on previous successes.";
   }
 
-  const context = `Job: ${job.name}\nMission: ${job.mission}${historyContext}`;
+  const context = triggerContext
+    ? `${triggerContext}\n\nJob: ${job.name}\nMission: ${job.mission}${historyContext}`
+    : `Job: ${job.name}\nMission: ${job.mission}${historyContext}`;
 
   // ── 2. Run the agent ──────────────────────────────────────────────────────
   const result = await runAgent("scheduled", context, job.id, job.mission, job.integrations);
