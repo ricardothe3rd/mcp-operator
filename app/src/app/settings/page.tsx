@@ -80,6 +80,11 @@ const SERVICES: ServiceConfig[] = [
     fields: [{ key: "sendgridApiKey", label: "API Key", placeholder: "SG…", type: "password" }],
     testable: false,
   },
+  {
+    id: "resend", label: "Resend", service: "resend", icon: "✉️",
+    fields: [{ key: "resendApiKey", label: "API Key", placeholder: "re_…", type: "password" }],
+    testable: false,
+  },
 ];
 
 export default function SettingsPage() {
