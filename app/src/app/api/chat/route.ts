@@ -42,7 +42,7 @@ const SETUP_SYSTEM_PROMPT = `You are the MCP Operator setup assistant. Your job 
 
 PHASE 1 — CONNECT PLATFORMS:
 Start by asking: "What do you want to automate? Describe it naturally."
-From their answer, identify which platforms are needed (Discord, GitHub, Google Sheets, Slack, HubSpot, Stripe, Airtable, Notion, SendGrid).
+From their answer, identify which platforms are needed (Discord, GitHub, Google Sheets, Slack, HubSpot, Stripe, Airtable, Notion, SendGrid, Resend).
 For each needed platform: ask for the credential ONE at a time → call save_config → call test_connection → confirm result → move to next.
 Do NOT move to Phase 2 until all platforms are connected and tested.
 
