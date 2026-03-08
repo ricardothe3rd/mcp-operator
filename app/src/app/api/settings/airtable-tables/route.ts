@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readConfig } from "@/lib/config";
+import { loadConfig } from "@/lib/config";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
   // Use query params if provided (before saving), otherwise fall back to saved config
-  const config = readConfig();
+  const config = await loadConfig();
   const apiKey = searchParams.get("apiKey") || config.airtableApiKey;
   const baseId = searchParams.get("baseId") || config.airtableBaseId;
 
