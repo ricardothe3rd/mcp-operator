@@ -4,6 +4,9 @@ import { runJob } from "@/lib/run-job";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { auth } from "@/auth";
 
+// Allow up to 60 seconds for agent runs (LLM + API calls)
+export const maxDuration = 60;
+
 export async function POST(
   _: NextRequest,
   { params }: { params: Promise<{ id: string }> }
