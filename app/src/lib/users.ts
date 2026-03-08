@@ -1,7 +1,5 @@
-import fs from "fs";
-import path from "path";
 import bcrypt from "bcryptjs";
-import { randomUUID } from "crypto";
+import { supabase } from "./supabase";
 
 export interface User {
   id: string;
@@ -11,39 +9,31 @@ export interface User {
   createdAt: string;
 }
 
-const USERS_PATH = path.join(process.cwd(), "mcp-operator.users.json");
-
-function readUsers(): User[] {
-  try {
-    if (!fs.existsSync(USERS_PATH)) return [];
-    return JSON.parse(fs.readFileSync(USERS_PATH, "utf-8"));
-  } catch {
-    return [];
-  }
-}
-
-function writeUsers(users: User[]) {
-  fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 2), { mode: 0o600 });
-}
-
-export function findUserByEmail(email: string): User | undefined {
-  return readUsers().find((u) => u.email.toLowerCase() === email.toLowerCase());
+export async function findUserByEmail(email: string): Promise<User | undefined> {
+  const { data } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email.toLowerCase())
+    .single();
+  if (!data) return undefined;
+  return { id: data.id, email: data.email, name: data.name, passwordHash: data.password_hash, createdAt: data.created_at };
 }
 
 export async function createUser(email: string, password: string, name: string): Promise<User> {
-  const users = readUsers();
-  if (users.find((u) => u.email.toLowerCase() === email.toLowerCase())) {
-    throw new Error("Email already registered");
-  }
+  const existing = await findUserByEmail(email);
+  if (existing) throw new Error("Email already registered");
   const passwordHash = await bcrypt.hash(password, 12);
-  const user: User = { id: randomUUID(), email, name, passwordHash, createdAt: new Date().toISOString() };
-  users.push(user);
-  writeUsers(users);
-  return user;
+  const { data, error } = await supabase
+    .from("users")
+    .insert({ email: email.toLowerCase(), name, password_hash: passwordHash })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return { id: data.id, email: data.email, name: data.name, passwordHash: data.password_hash, createdAt: data.created_at };
 }
 
 export async function verifyUser(email: string, password: string): Promise<User | null> {
-  const user = findUserByEmail(email);
+  const user = await findUserByEmail(email);
   if (!user) return null;
   const match = await bcrypt.compare(password, user.passwordHash);
   return match ? user : null;
