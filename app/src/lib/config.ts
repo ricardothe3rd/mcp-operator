@@ -39,6 +39,9 @@ export interface MCPConfig {
   // SendGrid
   sendgridApiKey: string;
 
+  // Resend
+  resendApiKey: string;
+
   // AI provider
   aiProvider: "google" | "openai" | "anthropic" | "groq" | "ollama" | "";
   aiApiKey: string;
@@ -66,6 +69,7 @@ const DEFAULTS: MCPConfig = {
   airtableTableNames: [],
   notionApiKey: "",
   sendgridApiKey: "",
+  resendApiKey: "",
 
   aiProvider: "",
   aiApiKey: "",
