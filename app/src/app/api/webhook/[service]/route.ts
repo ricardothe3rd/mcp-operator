@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runAgent } from "@/lib/agent";
+import { readJobs } from "@/lib/jobs";
+import { runJob } from "@/lib/run-job";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   verifyGitHubSignature,
@@ -60,6 +62,21 @@ export async function POST(
     ? `Webhook payload from ${normalised}:\n${payloadStr}`
     : `Webhook received from ${normalised} with no payload.`;
 
+  // Find jobs that include this service and run them with the webhook payload
+  const matchingJobs = readJobs().filter((j) => j.integrations.includes(normalised));
+
+  if (matchingJobs.length > 0) {
+    const results = await Promise.allSettled(
+      matchingJobs.map((job) => runJob(job, context))
+    );
+    return NextResponse.json({
+      ok: true,
+      jobsTriggered: matchingJobs.map((j) => j.name),
+      results: results.map((r) => (r.status === "fulfilled" ? r.value : { success: false, message: String(r.reason) })),
+    });
+  }
+
+  // Fallback: no matching jobs — run agent globally
   const result = await runAgent(`webhook:${normalised}`, context);
   return NextResponse.json(result);
 }
