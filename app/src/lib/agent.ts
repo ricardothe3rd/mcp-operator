@@ -69,14 +69,22 @@ export async function runAgent(
   // Use job-specific integrations if provided, otherwise fall back to all enabled
   const activeIntegrations = jobIntegrations ?? config.enabledIntegrations;
 
+  const configContext = [
+    config.githubRepo ? `GitHub repo: ${config.githubRepo}` : "",
+    config.airtableBaseId ? `Airtable base ID: ${config.airtableBaseId}` : "",
+    config.airtableTableNames?.length ? `Airtable tables: ${config.airtableTableNames.join(", ")}` : "",
+    config.resendApiKey ? `Resend is configured for sending email.` : "",
+  ].filter(Boolean).join("\n");
+
   const systemPrompt = `You are MCP Operator, an autonomous agent.
 Your mission: ${mission}
 
 Connected integrations: ${activeIntegrations.join(", ") || "none"}
+${configContext ? `\nConfiguration:\n${configContext}` : ""}
 
 When triggered, analyze the situation and take action according to your mission.
 Use the tools available to you. Be concise — act, then briefly summarize what you did.
-Do not ask for confirmation. Just act.`;
+Do NOT ask for configuration — all credentials and settings are already loaded. Just act.`;
 
   const userMessage = context
     ? `Trigger: ${trigger}\n\n${context}`
