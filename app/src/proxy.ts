@@ -12,11 +12,12 @@ export default auth((req) => {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/settings");
 
-  // API routes that require a session (webhooks use signature auth instead)
+  // API routes that require a session (webhooks + cron use their own auth)
   const isProtectedApi =
     pathname.startsWith("/api/") &&
     !pathname.startsWith("/api/auth/") &&
-    !pathname.startsWith("/api/webhook/");
+    !pathname.startsWith("/api/webhook/") &&
+    !pathname.startsWith("/api/cron");
 
   if ((isProtectedPage || isProtectedApi) && !req.auth) {
     if (isProtectedApi) {
