@@ -52,15 +52,8 @@ export async function POST(
     // non-JSON body is fine
   }
 
-  // Sanitise context — limit size, strip any null bytes
-  const payloadStr = rawBody
-    ? JSON.stringify(body ?? rawBody, null, 2)
-        .slice(0, 2000)
-        .replace(/\0/g, "")
-    : "";
-  const context = payloadStr
-    ? `Webhook payload from ${normalised}:\n${payloadStr}`
-    : `Webhook received from ${normalised} with no payload.`;
+  // Build context — extract key fields for known services to avoid truncation
+  const context = buildWebhookContext(normalised, body, rawBody);
 
   // Find jobs that include this service and run them with the webhook payload
   const matchingJobs = readJobs().filter((j) => j.integrations.includes(normalised));
@@ -91,6 +84,53 @@ export async function GET(
     return NextResponse.json({ error: "Unknown service" }, { status: 400 });
   }
   return NextResponse.json({ ok: true, message: `MCP Operator webhook ready for ${service}` });
+}
+
+// ── Webhook context builders ──────────────────────────────────────────────────
+
+function buildWebhookContext(service: string, body: unknown, rawBody: string): string {
+  if (service === "github" && body && typeof body === "object") {
+    const p = body as Record<string, unknown>;
+    const ref = (p.ref as string) ?? "";
+    const branch = ref.replace("refs/heads/", "");
+    const pusher = (p.pusher as Record<string, string>)?.name ?? "unknown";
+    const repoName = (p.repository as Record<string, unknown>)?.full_name ?? "";
+    const commits = (p.commits as Array<Record<string, unknown>>) ?? [];
+
+    const commitLines = commits.map((c) => {
+      const id = ((c.id as string) ?? "").slice(0, 7);
+      const message = (c.message as string) ?? "";
+      const author = (c.author as Record<string, string>)?.name ?? "";
+      const timestamp = (c.timestamp as string) ?? "";
+      const added = (c.added as string[]) ?? [];
+      const modified = (c.modified as string[]) ?? [];
+      const removed = (c.removed as string[]) ?? [];
+      return [
+        `  [${id}] ${message}`,
+        `  Author: ${author} | ${timestamp}`,
+        added.length ? `  Added: ${added.join(", ")}` : "",
+        modified.length ? `  Modified: ${modified.join(", ")}` : "",
+        removed.length ? `  Removed: ${removed.join(", ")}` : "",
+      ].filter(Boolean).join("\n");
+    });
+
+    return [
+      `GitHub push webhook:`,
+      `Repository: ${repoName}`,
+      `Branch: ${branch}`,
+      `Pusher: ${pusher}`,
+      `Commits (${commits.length}):`,
+      ...commitLines,
+    ].join("\n");
+  }
+
+  // Generic fallback
+  const payloadStr = rawBody
+    ? JSON.stringify(body ?? rawBody, null, 2).slice(0, 4000).replace(/\0/g, "")
+    : "";
+  return payloadStr
+    ? `Webhook payload from ${service}:\n${payloadStr}`
+    : `Webhook received from ${service} with no payload.`;
 }
 
 // ── Verification helpers ──────────────────────────────────────────────────────
