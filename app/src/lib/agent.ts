@@ -115,7 +115,7 @@ Act now. Do not ask for permission.`;
       model: getModel(config),
       system: systemPrompt + knowledgeContext,
       prompt: userMessage,
-      stopWhen: stepCountIs(5),
+      stopWhen: stepCountIs(8),
       tools,
     });
 
