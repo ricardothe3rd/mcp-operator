@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText, tool, stepCountIs, zodSchema } from "ai";
 import { createOllama } from "ai-sdk-ollama";
+import { createGroq } from "@ai-sdk/groq";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 import { readConfig, writeConfig } from "@/lib/config";
 import { createJob } from "@/lib/jobs";
@@ -18,9 +22,21 @@ const ALLOWED_CONFIG_KEYS = new Set([
 
 function getModel() {
   const config = readConfig();
-  const base = config.ollamaBaseUrl || process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-  const model = config.ollamaModel || "llama3.2";
-  return createOllama({ baseURL: base })(model);
+  switch (config.aiProvider) {
+    case "groq":
+      return createGroq({ apiKey: config.aiApiKey })("llama-3.3-70b-versatile");
+    case "google":
+      return createGoogleGenerativeAI({ apiKey: config.aiApiKey })("gemini-2.0-flash");
+    case "openai":
+      return createOpenAI({ apiKey: config.aiApiKey })("gpt-4o-mini");
+    case "anthropic":
+      return createAnthropic({ apiKey: config.aiApiKey || process.env.ANTHROPIC_API_KEY || "" })("claude-haiku-4-5-20251001");
+    default: {
+      const base = config.ollamaBaseUrl || process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return createOllama({ baseURL: base })(config.ollamaModel || "llama3.2") as any;
+    }
+  }
 }
 
 const SETUP_SYSTEM_PROMPT = `You are the MCP Operator setup assistant. Your job is to onboard the user in two phases.
@@ -53,7 +69,6 @@ function buildSystemPrompt(config: ReturnType<typeof readConfig>, knowledgeConte
       `GitHub token: ${config.githubToken ? "✓ set" : "✗ missing"}`,
       `GitHub repo: ${config.githubRepo ? `✓ set (${config.githubRepo})` : "✗ missing"}`,
       `Discord webhook: ${config.discordWebhookUrl ? "✓ set" : "✗ missing"}`,
-      `Slack webhook: ${config.slackWebhookUrl ? "✓ set" : "✗ missing"}`,
       `Airtable API key: ${config.airtableApiKey ? "✓ set" : "✗ missing"}`,
       `Airtable base ID: ${config.airtableBaseId ? "✓ set" : "✗ missing"}`,
     ].join("\n");
@@ -66,17 +81,28 @@ Connected integrations: ${integrations}
 Credential status:
 ${credStatus}
 
-You can help the user:
-- Understand what their agent is doing and why
-- Add or update API keys (call save_config)
-- Create new scheduled jobs (call create_job)
-- Change the agent mission or schedule
-- Troubleshoot failed jobs or connections
-- Explain what each integration does
+HOW TO HANDLE AUTOMATION REQUESTS:
 
-IMPORTANT: Before calling create_job, check the credential status above. If any credentials required by the job are missing (✗), tell the user exactly which ones are missing and ask them to add them in Settings first. Only call create_job once all required credentials are set.
+Step 1 — DISCOVER: If the user wants to automate something but hasn't told you which apps or what action to take, ask ONE question: "What would you like to automate? Which apps do you want to connect?" Do not check credentials yet.
 
-Keep responses short and actionable. If asked to save a credential, use save_config then test_connection.
+Step 2 — UNDERSTAND: Once they describe the specific automation, identify which services are needed.
+
+Step 3 — CHECK CREDENTIALS (REQUIRED — do not skip): For each service needed by this automation, check the credential status above. If ANY required credential is ✗ missing, STOP and say: "You'll need to add your [service] credentials in Settings first." Do NOT call create_job until every needed credential shows ✓ set. Only check services relevant to this automation — ignore others.
+
+Step 4 — CREATE: Only once ALL needed credentials show ✓ set, call create_job immediately. Do not ask for confirmation. You fill in all parameters yourself — never ask the user for JSON, arrays, or field names.
+
+Parameters you infer for create_job:
+- name: short label (3-5 words) from what they said
+- mission: clear instruction for what the agent does each run
+- integrations: array of service names, e.g. ["github", "slack"]
+- intervalMinutes: infer from "daily"=1440, "hourly"=60, "every 30 min"=30. If unclear, ask ONE question: "How often should this run?"
+- autoRun: always true unless they say otherwise
+
+Example: user says "post github commits to discord every hour"
+→ Check only github + discord in credential status
+→ Both ✓ set → call create_job immediately with the right params
+
+Keep responses short. Never show tool parameter names or JSON to the user.
 Never echo raw credentials back to the user.
 ${knowledgeContext}`;
   }
