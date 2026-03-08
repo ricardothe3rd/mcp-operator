@@ -186,6 +186,11 @@ function buildHardcodedTools(config: MCPConfig) {
 
   // GitHub (fallback — MCP server overrides when available)
   if (config.githubToken) {
+    // Normalise repo: strip full URL if user saved "https://github.com/owner/repo"
+    const githubRepo = config.githubRepo
+      ? config.githubRepo.replace(/^https?:\/\/github\.com\//, "").replace(/\/$/, "")
+      : "";
+
     const ghHeaders = {
       Authorization: `Bearer ${config.githubToken}`,
       "User-Agent": "mcp-operator",
@@ -203,9 +208,9 @@ function buildHardcodedTools(config: MCPConfig) {
         })
       ),
       execute: async ({ state = "open" }) => {
-        if (!config.githubRepo) return { ok: false, message: "No GitHub repo configured" };
+        if (!githubRepo) return { ok: false, message: "No GitHub repo configured" };
         const res = await fetch(
-          `https://api.github.com/repos/${config.githubRepo}/pulls?state=${state}&per_page=20`,
+          `https://api.github.com/repos/${githubRepo}/pulls?state=${state}&per_page=20`,
           { headers: ghHeaders }
         );
         if (!res.ok) return { ok: false, message: `GitHub error ${res.status}` };
@@ -235,9 +240,9 @@ function buildHardcodedTools(config: MCPConfig) {
         })
       ),
       execute: async ({ per_page = 10 }) => {
-        if (!config.githubRepo) return { ok: false, message: "No GitHub repo configured" };
+        if (!githubRepo) return { ok: false, message: "No GitHub repo configured" };
         const res = await fetch(
-          `https://api.github.com/repos/${config.githubRepo}/commits?per_page=${per_page}`,
+          `https://api.github.com/repos/${githubRepo}/commits?per_page=${per_page}`,
           { headers: ghHeaders }
         );
         if (!res.ok) return { ok: false, message: `GitHub error ${res.status}` };
