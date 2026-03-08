@@ -45,7 +45,11 @@ function getModel(config: MCPConfig) {
       return a("claude-haiku-4-5-20251001");
     }
     default: {
-      // Zero-config fallback — try Ollama first (no key needed)
+      // Prefer Anthropic via env var (works on Vercel); fall back to Ollama locally
+      const anthropicKey = process.env.ANTHROPIC_API_KEY;
+      if (anthropicKey) {
+        return createAnthropic({ apiKey: anthropicKey })("claude-haiku-4-5-20251001");
+      }
       const ollamaBase = config.ollamaBaseUrl || process.env.OLLAMA_BASE_URL || "http://localhost:11434";
       const ollamaModel = config.ollamaModel || "llama3.2";
       const ollama = createOllama({ baseURL: ollamaBase });
@@ -260,7 +264,7 @@ function buildHardcodedTools(config: MCPConfig) {
       inputSchema: zodSchema(
         z.object({
           table: z.string().describe("Table name or ID"),
-          fields: z.record(z.unknown()).describe("Field values for the new record"),
+          fields: z.record(z.string(), z.unknown()).describe("Field values for the new record"),
         })
       ),
       execute: async ({ table, fields }) => {
