@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Send, Plus, Link2, TestTube2, BarChart3, Loader2, Play, Square, Trash2, Zap, ChevronDown, PanelLeftClose, PanelLeftOpen, LayoutDashboard, History, KeyRound, BriefcaseBusiness, ScrollText, Menu, X, Settings } from "lucide-react";
+import { Send, Plus, Link2, TestTube2, BarChart3, Loader2, Play, Square, Trash2, Zap, ChevronDown, PanelLeftClose, PanelLeftOpen, LayoutDashboard, History, KeyRound, BriefcaseBusiness, ScrollText, Menu, X, Settings, SquarePen } from "lucide-react";
 import UserMenu from "@/components/UserMenu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -153,12 +153,48 @@ export default function DashboardClient({
     if (screenSize === "tablet") setSidebarOpen(false);
   }, [screenSize]);
 
-  useEffect(() => { setSessions(loadSessions()); }, []);
+  // Restore last session (or most recent) from localStorage on mount
+  useEffect(() => {
+    const saved = loadSessions();
+    setSessions(saved);
+    if (saved.length > 0) {
+      setMessages(saved[0].messages);
+      setSessionId(saved[0].id);
+    }
+  }, []);
   useEffect(() => {
     if (isAtBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, sending]);
+
+  const loadSession = useCallback((session: ChatSession) => {
+    setMessages(session.messages);
+    setSessionId(session.id);
+    setActiveTab("overview");
+  }, []);
+
+  const newChat = useCallback(() => {
+    setMessages([INITIAL_CHAT_MESSAGE]);
+    setSessionId(null);
+    setInput("");
+  }, []);
+
+  const deleteSession = useCallback((id: string) => {
+    setSessions((prev) => {
+      const updated = prev.filter((s) => s.id !== id);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); } catch { /* ignore */ }
+      return updated;
+    });
+    // If deleting the active session, start a new chat
+    setSessionId((current) => {
+      if (current === id) {
+        setMessages([INITIAL_CHAT_MESSAGE]);
+        return null;
+      }
+      return current;
+    });
+  }, []);
 
   const saveCurrentSession = useCallback((msgs: ChatMessage[], sid: string | null) => {
     if (!sid) return;
@@ -227,6 +263,10 @@ export default function DashboardClient({
           <span className="font-semibold tracking-wide text-foreground">MCP Operator</span>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={newChat} title="New chat">
+            <SquarePen className="size-4 sm:hidden" />
+            <span className="hidden sm:inline">New Chat</span>
+          </Button>
           <Link href="/settings" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
             <Settings className="size-4 sm:hidden" />
             <span className="hidden sm:inline">Settings</span>
@@ -253,6 +293,8 @@ export default function DashboardClient({
                   activity={activity}
                   stats={stats}
                   sessions={sessions}
+                  onLoadSession={loadSession}
+                  onDeleteSession={deleteSession}
                   onCollapse={() => setSidebarOpen(false)}
                 />
               </>
@@ -303,6 +345,8 @@ export default function DashboardClient({
                 activity={activity}
                 stats={stats}
                 sessions={sessions}
+                onLoadSession={loadSession}
+                onDeleteSession={deleteSession}
                 onClose={() => setMobileDrawerOpen(false)}
               />
             </SheetContent>
@@ -417,11 +461,13 @@ interface SidebarPanelProps {
   activity: ActivityEntry[];
   stats: DashboardStats;
   sessions: ChatSession[];
+  onLoadSession: (session: ChatSession) => void;
+  onDeleteSession: (id: string) => void;
   onCollapse?: () => void;
   onClose?: () => void;
 }
 
-function SidebarPanel({ activeTab, onTabChange, config, activity, stats, sessions, onCollapse, onClose }: SidebarPanelProps) {
+function SidebarPanel({ activeTab, onTabChange, config, activity, stats, sessions, onLoadSession, onDeleteSession, onCollapse, onClose }: SidebarPanelProps) {
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="flex flex-col h-full">
       <div className="flex items-center border-b border-border shrink-0">
@@ -438,11 +484,11 @@ function SidebarPanel({ activeTab, onTabChange, config, activity, stats, session
           variant="line"
           className="flex-1 justify-start rounded-none px-1 h-9 gap-0 bg-transparent border-none min-w-0 min-h-[40px]"
         >
-          <TabsTrigger value="overview" className="px-2 text-[11px] gap-1 min-w-0 h-full"><LayoutDashboard className="size-3 shrink-0" /><span className="truncate">Overview</span></TabsTrigger>
-          <TabsTrigger value="history"  className="px-2 text-[11px] gap-1 min-w-0 h-full"><History className="size-3 shrink-0" /><span className="truncate">History</span></TabsTrigger>
-          <TabsTrigger value="keys"     className="px-2 text-[11px] gap-1 min-w-0 h-full"><KeyRound className="size-3 shrink-0" /><span className="truncate">Keys</span></TabsTrigger>
-          <TabsTrigger value="jobs"     className="px-2 text-[11px] gap-1 min-w-0 h-full"><BriefcaseBusiness className="size-3 shrink-0" /><span className="truncate">Jobs</span></TabsTrigger>
-          <TabsTrigger value="logs"     className="px-2 text-[11px] gap-1 min-w-0 h-full"><ScrollText className="size-3 shrink-0" /><span className="truncate">Logs</span></TabsTrigger>
+          <TabsTrigger value="overview" className="px-2 text-[11px] min-w-0 h-full"><span className="truncate">Overview</span></TabsTrigger>
+          <TabsTrigger value="history"  className="px-2 text-[11px] min-w-0 h-full"><span className="truncate">History</span></TabsTrigger>
+          <TabsTrigger value="keys"     className="px-2 text-[11px] min-w-0 h-full"><span className="truncate">Keys</span></TabsTrigger>
+          <TabsTrigger value="jobs"     className="px-2 text-[11px] min-w-0 h-full"><span className="truncate">Jobs</span></TabsTrigger>
+          <TabsTrigger value="logs"     className="px-2 text-[11px] min-w-0 h-full"><span className="truncate">Logs</span></TabsTrigger>
         </TabsList>
         {onCollapse && (
           <button
@@ -462,7 +508,7 @@ function SidebarPanel({ activeTab, onTabChange, config, activity, stats, session
       </TabsContent>
       <TabsContent value="history" className="flex-1 overflow-hidden">
         <ScrollArea className="h-full">
-          <div className="p-4"><HistoryTab sessions={sessions} /></div>
+          <div className="p-4"><HistoryTab sessions={sessions} onLoadSession={onLoadSession} onDeleteSession={onDeleteSession} /></div>
         </ScrollArea>
       </TabsContent>
       <TabsContent value="keys" className="flex-1 overflow-hidden">
@@ -558,31 +604,31 @@ function OverviewTab({
 
 // ─── Tab: History ─────────────────────────────────────────────────────────────
 
-function HistoryTab({ sessions }: { sessions: ChatSession[] }) {
+function HistoryTab({ sessions, onLoadSession, onDeleteSession }: { sessions: ChatSession[]; onLoadSession: (s: ChatSession) => void; onDeleteSession: (id: string) => void }) {
   if (sessions.length === 0) {
     return (
       <div className="text-center py-12">
         <p className="text-sm text-muted-foreground">No conversations yet</p>
-        <Link href="/dashboard" className="text-xs text-primary hover:underline mt-1 block">
-          Start a conversation →
-        </Link>
+        <p className="text-xs text-muted-foreground/60 mt-1">Start chatting to save history</p>
       </div>
     );
   }
   return (
     <div className="space-y-1.5">
       {sessions.map((s) => (
-        <Link
-          key={s.id}
-          href="/dashboard"
-          className="flex items-center justify-between bg-muted/30 border border-border/60 rounded-lg px-3 py-2.5 hover:bg-muted/60 transition-colors group"
-        >
-          <div className="min-w-0">
-            <p className="text-xs text-foreground/80 truncate group-hover:text-foreground">{s.title}</p>
-            <p className="text-[10px] text-muted-foreground">{s.messages.length} messages</p>
-          </div>
-          <Badge variant="secondary" className="shrink-0 text-[10px] ml-2">{formatDate(s.createdAt)}</Badge>
-        </Link>
+        <div key={s.id} className="flex items-center justify-between bg-muted/30 border border-border/60 rounded-lg px-3 py-2.5 hover:bg-muted/60 transition-colors group">
+          <button onClick={() => onLoadSession(s)} className="flex-1 min-w-0 text-left">
+            <p className="text-xs text-foreground/80 truncate">{s.title}</p>
+            <p className="text-[10px] text-muted-foreground">{s.messages.length} messages · {formatDate(s.createdAt)}</p>
+          </button>
+          <button
+            onClick={() => onDeleteSession(s.id)}
+            className="shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+            title="Delete chat"
+          >
+            <Trash2 className="size-3" />
+          </button>
+        </div>
       ))}
     </div>
   );
