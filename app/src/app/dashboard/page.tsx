@@ -33,6 +33,7 @@ export interface SerializedConfig {
   airtableApiKey: string;
   notionApiKey: string;
   sendgridApiKey: string;
+  resendApiKey: string;
   aiApiKey: string;
 }
 
@@ -72,6 +73,7 @@ export default async function Dashboard() {
     airtableApiKey: config.airtableApiKey ?? "",
     notionApiKey: config.notionApiKey ?? "",
     sendgridApiKey: config.sendgridApiKey ?? "",
+    resendApiKey: config.resendApiKey ?? "",
     aiApiKey: config.aiApiKey ?? "",
   };
 
