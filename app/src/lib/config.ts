@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { supabase } from "./supabase";
 
 export interface MCPConfig {
   // Setup state
@@ -13,7 +12,7 @@ export interface MCPConfig {
 
   // GitHub
   githubToken: string;
-  githubRepo: string; // "owner/repo"
+  githubRepo: string;
 
   // Google Sheets
   googleSheetsApiKey: string;
@@ -31,7 +30,7 @@ export interface MCPConfig {
   // Airtable
   airtableApiKey: string;
   airtableBaseId: string;
-  airtableTableNames: string[]; // all selected tables the agent can use
+  airtableTableNames: string[];
 
   // Notion
   notionApiKey: string;
@@ -78,24 +77,27 @@ const DEFAULTS: MCPConfig = {
   ollamaModel: "llama3.2",
 };
 
-const CONFIG_PATH = path.join(process.cwd(), "mcp-operator.config.json");
+// In-process cache so synchronous callers (agent.ts, etc.) get a fast read
+let _cache: MCPConfig | null = null;
 
 export function readConfig(): MCPConfig {
-  try {
-    if (!fs.existsSync(CONFIG_PATH)) {
-      writeConfig(DEFAULTS);
-      return DEFAULTS;
-    }
-    const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
-    return { ...DEFAULTS, ...JSON.parse(raw) };
-  } catch {
-    return DEFAULTS;
-  }
+  return _cache ?? DEFAULTS;
 }
 
-export function writeConfig(config: Partial<MCPConfig>): MCPConfig {
-  const current = readConfig();
-  const updated = { ...current, ...config };
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(updated, null, 2), { mode: 0o600 });
+export async function loadConfig(): Promise<MCPConfig> {
+  const { data } = await supabase
+    .from("config")
+    .select("data")
+    .eq("id", 1)
+    .single();
+  _cache = { ...DEFAULTS, ...((data?.data as Partial<MCPConfig>) ?? {}) };
+  return _cache;
+}
+
+export async function writeConfig(patch: Partial<MCPConfig>): Promise<MCPConfig> {
+  const current = await loadConfig();
+  const updated = { ...current, ...patch };
+  await supabase.from("config").upsert({ id: 1, data: updated });
+  _cache = updated;
   return updated;
 }
