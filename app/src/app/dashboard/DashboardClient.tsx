@@ -790,6 +790,13 @@ function JobsTab() {
               </div>
             </div>
 
+            {/* Last message preview */}
+            {job.lastMessage && (
+              <p className="text-[10px] text-muted-foreground/70 leading-relaxed line-clamp-2">
+                {job.lastMessage.slice(0, 120)}{job.lastMessage.length > 120 ? "…" : ""}
+              </p>
+            )}
+
             {/* Integrations */}
             {job.integrations.length > 0 && (
               <div className="flex flex-wrap gap-1">
