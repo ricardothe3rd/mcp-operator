@@ -56,7 +56,8 @@ export async function POST(
   const context = buildWebhookContext(normalised, body, rawBody);
 
   // Find jobs that include this service and run them with the webhook payload
-  const matchingJobs = readJobs().filter((j) => j.integrations.includes(normalised));
+  const allJobs = await readJobs();
+  const matchingJobs = allJobs.filter((j) => j.integrations.includes(normalised));
 
   if (matchingJobs.length > 0) {
     const results = await Promise.allSettled(
