@@ -20,7 +20,7 @@ export async function POST(
     );
   }
 
-  const jobs = readJobs();
+  const jobs = await readJobs();
   const job = jobs.find((j) => j.id === id);
   if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
