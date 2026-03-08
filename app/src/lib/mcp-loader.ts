@@ -10,6 +10,12 @@ interface MCPTools {
 }
 
 export async function loadMCPTools(config: MCPConfig): Promise<MCPTools> {
+  // Vercel serverless cannot spawn child processes reliably — skip MCP loading
+  // and let agent.ts fallback tools handle all integrations.
+  if (process.env.VERCEL) {
+    return { tools: {}, cleanup: async () => {} };
+  }
+
   const clients: Awaited<ReturnType<typeof createMCPClient>>[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const toolMaps: Record<string, any>[] = [];
