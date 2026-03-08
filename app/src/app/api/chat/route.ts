@@ -71,6 +71,7 @@ function buildSystemPrompt(config: ReturnType<typeof readConfig>, knowledgeConte
       `Discord webhook: ${config.discordWebhookUrl ? "✓ set" : "✗ missing"}`,
       `Airtable API key: ${config.airtableApiKey ? "✓ set" : "✗ missing"}`,
       `Airtable base ID: ${config.airtableBaseId ? "✓ set" : "✗ missing"}`,
+      `Resend API key: ${config.resendApiKey ? "✓ set" : "✗ missing"}`,
     ].join("\n");
 
     return `You are MCP Operator, an AI assistant managing the user's automations.
