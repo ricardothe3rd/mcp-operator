@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+
+export const maxDuration = 60;
 import { runAgent } from "@/lib/agent";
 import { readJobs } from "@/lib/jobs";
 import { runJob } from "@/lib/run-job";
