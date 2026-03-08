@@ -18,7 +18,7 @@ export async function runJob(
   triggerContext?: string
 ): Promise<{ success: boolean; message: string }> {
   // ── 1. Build history context ──────────────────────────────────────────────
-  const recentRuns = readActivityByJob(job.id, 5);
+  const recentRuns = await readActivityByJob(job.id, 5);
 
   let historyContext = "";
   if (recentRuns.length > 0) {
@@ -45,7 +45,7 @@ export async function runJob(
     ? 0
     : (job.consecutiveFailures ?? 0) + 1;
 
-  patchJob(job.id, {
+  await patchJob(job.id, {
     lastRunAt: new Date().toISOString(),
     lastResult: result.success ? "success" : "failed",
     lastMessage: result.message,
