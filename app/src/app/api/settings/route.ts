@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readConfig, writeConfig } from "@/lib/config";
+import { loadConfig, writeConfig } from "@/lib/config";
 
 // Explicit allowlist — only these keys may be written via the API
 const ALLOWED_KEYS = new Set([
@@ -35,7 +35,7 @@ function maskKey(value: string): string {
 
 // Auth enforced by middleware
 export async function GET() {
-  const config = readConfig();
+  const config = await loadConfig();
   return NextResponse.json({
     setupComplete: config.setupComplete,
     agentMission: config.agentMission,
@@ -80,6 +80,6 @@ export async function POST(req: NextRequest) {
     safeBody[key] = value;
   }
 
-  const updated = writeConfig(safeBody);
+  const updated = await writeConfig(safeBody);
   return NextResponse.json({ ok: true, setupComplete: updated.setupComplete });
 }
