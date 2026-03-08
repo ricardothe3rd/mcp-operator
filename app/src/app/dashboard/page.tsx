@@ -8,7 +8,7 @@ import DashboardClient from "./DashboardClient";
 const CREDENTIAL_FIELDS = [
   "discordWebhookUrl", "githubToken", "slackWebhookUrl",
   "googleSheetsApiKey", "hubspotApiKey", "stripeApiKey",
-  "airtableApiKey", "notionApiKey", "sendgridApiKey", "aiApiKey",
+  "airtableApiKey", "notionApiKey", "sendgridApiKey", "resendApiKey", "aiApiKey",
 ] as const;
 
 export interface DashboardStats {
